@@ -43,7 +43,7 @@ else
 fi
 
 # Create config file
-confFile="${DEST_PATH}/${DISPLAY_NAME}.conf"
+confFile="${DEST_PATH}/appmanagerregistry.conf"
 echo "{\"applications\":" > $confFile
 echo " [" >> $confFile
 echo "  {" >> $confFile

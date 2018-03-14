@@ -15,10 +15,12 @@
 
 # Assigned with dummy data
 APP_NAME=""
-APP_VERSION="DUMMY_VERSION"
+# Default Version
+APP_VERSION="1.0"
 # need to add changes to update with real values
 # for rel number and arch name
-RELEASE_NUM="DUMMY_REL"
+# Default Relese number
+RELEASE_NUM="0000"
 ARCH_NAME="DUMMY_ARCH"
 
 localDir=`pwd`
@@ -44,18 +46,19 @@ usage()
 readAppConfig()
 {
     APP_CONFIG=$1
-	# Dummy data shall be used in case of missing 
-	# required meta data
-	APP_NAME=""
-	APP_VERSION="DUMMY_VER"
-	
+# Dummy data shall be used in case of missing 
+# required meta data
+    APP_NAME=""
+        # Define with default value
+    APP_VERSION="1.0"
+   
     echo "Reading config file $APP_CONFIG"
     APP_NAME=`cat $APP_CONFIG | grep -w \"displayName\" | tail -1 | cut -d\" -f4`
     APP_VERSION=`cat $APP_CONFIG | grep -w \"version\" | tail -1 | cut -d\" -f4`
-	if [ "$APP_NAME" = "" ] ;then 
-        echo "App Name is missing in provided config file"
-        exit 0
-	fi
+    if [ "$APP_NAME" = "" ] ;then 
+         echo "App Name is missing in provided config file"
+         exit 0
+    fi
 }
 
 # flag to confirm app config input 
@@ -72,7 +75,7 @@ while getopts ":k:c:p:a:" opt; do
           exit 0
       fi
       SIGNING_KEY=("$OPTARG")
-      echo "key is $SIGNING_KEY"
+      echo "Third Party Signing key is $SIGNING_KEY"
     ;;
     c)
       if [ $appConfigReq = 1 ]; then
@@ -111,22 +114,26 @@ done
 # Verify the input arguement
 if [ ! -f "$SIGNING_KEY" ]; then
     echo "Signing Key does not exists"
+    usage
     exit 0
 fi
 
 if [ ! -f "$CA_CERT" ]; then
      echo "Verification Certificate does not exists"
+    usage
      exit 0
 fi
 
 if [ ${#PACKAGE_LIST[@]} = 0 ]; then
     echo "Packaged file to be signed is missing"
     echo "Provide at least one package for signing"
+    usage
     exit 0
 fi
 
 if [ ${#APPCONF_LIST[@]} = 0 ]; then
     echo "App manager config file to define package attributes is missing"
+    usage
     exit 0
 fi
 
@@ -165,7 +172,7 @@ for ((idx=0; idx<${#PACKAGE_LIST[@]}; idx++)); do
     # does not exists
     PACKAGED_FILE="${PACKAGE_LIST[idx]}"
     APPMGR_CONF="${APPCONF_LIST[idx]}"
-    if [[ (! -f "$PACKAGED_FILE") || (! -f "$APPMGR_CONF") ]]; then
+    if [[ ( ! -f "$PACKAGED_FILE") || ( ! -f "$APPMGR_CONF") ]]; then
         echo "Package file $PACKAGED_FILE or correspding App config $APPMGR_CONF does not exists"
         continue
     fi
@@ -183,10 +190,16 @@ for ((idx=0; idx<${#PACKAGE_LIST[@]}; idx++)); do
         echo "Supported package extension is {tar/ipk}, $PACKAGED_EXTENSION is not supported"
         exit 0
     else
-        #copy tar file for signing
+        #Appending App manager config file into existing package tar
+        if [ "$PACKAGED_EXTENSION" = "tar" ]; then
+            tar --append --file="${PACKAGED_FILE}" "${APPMGR_CONF}"
+        fi
+        if [ "$PACKAGED_EXTENSION" = "ipk" ]; then
+            ar q "${PACKAGED_FILE}" -f "${APPMGR_CONF}"
+        fi
+
+        # placing the package file to local directory prior to signing
         cp "${PACKAGED_FILE}" ${localDir}
-        # copy app conf file for packaging
-        cp "${APPMGR_CONF}" ${localDir}
     fi
 
     # Signing the tar file using openssl
@@ -204,7 +217,7 @@ for ((idx=0; idx<${#PACKAGE_LIST[@]}; idx++)); do
     # Packaging all required component to create final tarball
     #finalTarFile="ThirdPartyAppSignedTarBall_${PACKAGED_NAME}-signed.tar"
     finalTarFile="$APP_NAME"-"$APP_VERSION"-"$RELEASE_NUM"."$ARCH_NAME".tar
-    tar -cvf "${finalTarFile}" "${PACKAGED_NAME}.sig" "${PACKAGED_TAR}" "${CA_CERT}" "${APPCONF}"
+    tar -cvf "${finalTarFile}" "${PACKAGED_NAME}.sig" "${PACKAGED_TAR}" "${CA_CERT}"
 
     if [ $? -ne 0 ]; then
         echo "Error in Signed tar file creation for package ${PACKAGED_NAME}" 
@@ -212,7 +225,7 @@ for ((idx=0; idx<${#PACKAGE_LIST[@]}; idx++)); do
     else
         echo "Successfully created Final Tar ball $finalTarFile"
         # Cleanup tarball for signed package and app config file
-        rm -rf "${PACKAGED_NAME}.sig" "${PACKAGED_TAR}" "${APPCONF}"
+        rm -rf "${PACKAGED_NAME}.sig" "${PACKAGED_TAR}"
     fi
 done
 # Removing Signing key & CA Certificate
