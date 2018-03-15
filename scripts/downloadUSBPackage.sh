@@ -57,6 +57,8 @@ if [ "x$USBMOUNT_ENABLE" != "xtrue" ]; then
     exit 0
 fi
 
+packageLocation=""
+
 # Subroutine to read application config file
 readAppConfig()
 {
@@ -84,7 +86,7 @@ modifyAppmanager()
        log_msg "App manager config file does not exists"
 	   log_msg "Making the package config as App Manager config"
 	   cp ${appConfigFile} $appManagerconf
-       return
+           return
    fi
 
    # Appending new entry in config file
@@ -94,7 +96,7 @@ modifyAppmanager()
         sed -i "$count i \"version\" : \"${APP_VERSION}\"" $appManagerconf
     fi
     sed -i "$count i     \"applicationType\" : \"${APP_TYPE}\"" $appManagerconf
-    sed -i "$count i     \"uri\" : \"${APP_LAUNCHER}\"" $appManagerconf
+    sed -i "$count i     \"uri\" : \"$packageLocation/${APP_LAUNCHER}\"" $appManagerconf
     sed -i "$count i     \"cmdName\" : \"${CMD_NAME}\"" $appManagerconf
     sed -i "$count i     \"DisplayName\" : \"${APP_NAME}\"" $appManagerconf
     sed -i "$count i     {" $appManagerconf
@@ -181,9 +183,10 @@ for file in $packagedFile; do
     readAppConfig ${appConfigFile}
     # Modify app launcher reference
     cmd=`echo $APP_LAUNCHER | xargs basename`
+
     APP_LAUNCHER=`find $packageLocation -name $cmd` 
     # provide execution access to app launcher
-    chmod +x $APP_LAUNCHER
+    chmod +x $packageLocation/$APP_LAUNCHER
     # Modify App manager for package
     modifyAppmanager
     # Clean up if fail to modify the App manager 
