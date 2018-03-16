@@ -57,8 +57,6 @@ if [ "x$USBMOUNT_ENABLE" != "xtrue" ]; then
     exit 0
 fi
 
-packageLocation=""
-
 # Subroutine to read application config file
 readAppConfig()
 {
@@ -82,11 +80,22 @@ readAppConfig()
 modifyAppmanager()
 {
    # modify app manager config file
+   # Create new entry to app manager config file
    if [ ! -f "$appManagerconf" ]; then
-       log_msg "App manager config file does not exists"
-	   log_msg "Making the package config as App Manager config"
-	   cp ${appConfigFile} $appManagerconf
-           return
+       echo "{\"applications\":" >> $appManagerconf
+       echo "    [">> $appManagerconf
+       echo "      {">> $appManagerconf
+       echo "         \"displayName\" : \"${APP_NAME}\"" >> $appManagerconf
+       echo "         \"cmdName\" : \"${CMD_NAME}\"" >> $appManagerconf
+       echo "         \"uri\" : \"${APP_LAUNCHER}\"" >> $appManagerconf
+       echo "         \"applicationType\" : \"${APP_TYPE}\"" >> $appManagerconf
+       if [ "$APP_VERSION" != "" ]; then
+          echo "      \"version\" : \"${APP_VERSION}\"" >> $appManagerconf
+       fi
+       echo "      }">> $appManagerconf
+       echo "    ]">> $appManagerconf
+       echo "}">> $appManagerconf
+       return
    fi
 
    # Appending new entry in config file
@@ -96,9 +105,9 @@ modifyAppmanager()
         sed -i "$count i \"version\" : \"${APP_VERSION}\"" $appManagerconf
     fi
     sed -i "$count i     \"applicationType\" : \"${APP_TYPE}\"" $appManagerconf
-    sed -i "$count i     \"uri\" : \"$packageLocation/${APP_LAUNCHER}\"" $appManagerconf
+    sed -i "$count i     \"uri\" : \"${APP_LAUNCHER}\"" $appManagerconf
     sed -i "$count i     \"cmdName\" : \"${CMD_NAME}\"" $appManagerconf
-    sed -i "$count i     \"DisplayName\" : \"${APP_NAME}\"" $appManagerconf
+    sed -i "$count i     \"displayName\" : \"${APP_NAME}\"" $appManagerconf
     sed -i "$count i     {" $appManagerconf
     sed -i "$count i     }," $appManagerconf
 } 
@@ -113,7 +122,8 @@ fi
 # Check if any signed tarball present
 packagedFile="$(find $USB_MOUNT_POINT -name '*.tar' -type f)"
 # Loop to validate all packages resides at USB Mount point
-for file in $packagedFile; do
+for file in `find $USB_MOUNT_POINT -name '*.tar' -type f`
+do
     if [ ! -f $file ]; then
         log_msg "Packaged file $file does not exists"
         log_msg "Continue to next package"
@@ -127,9 +137,15 @@ for file in $packagedFile; do
 # extract the package tar ball
 # Create package directory to extract tarball
     packageDir="${fileName%.*}"
-    mkdir -p "${filePath}"/"${packageDir}"
     packageLocation="${filePath}"/"${packageDir}"
-    tar -xvf "${packagedFile}" -C "${filePath}"/"${packageDir}"
+    # Check if given package has already been extracted & corresponding
+    # entry has already been made in the App Manager
+    if [ -d $packageLocation ] && [ -f $packageLocation/appMgrUpdated.txt ]; then
+        log_msg "Package $file has already been extracted & updated"
+        continue
+    fi
+    mkdir -p "${filePath}"/"${packageDir}"
+    tar -xvf "${file}" -C "${filePath}"/"${packageDir}"
         
 # verify if all required files present
     package_signatureFile=`ls $packageLocation/*.sig| xargs basename`
@@ -186,13 +202,16 @@ for file in $packagedFile; do
 
     APP_LAUNCHER=`find $packageLocation -name $cmd` 
     # provide execution access to app launcher
-    chmod +x $packageLocation/$APP_LAUNCHER
+    chmod +x $APP_LAUNCHER
     # Modify App manager for package
     modifyAppmanager
     # Clean up if fail to modify the App manager 
     if [ $? -ne 0 ]; then
        rm -rf $packageLocation/*
     fi
+    # Create a txt indicating that app manager for given package
+    # has been updated
+    touch $packageLocation/appMgrUpdated.txt
     rm -rf $packageLocation/$package_tarFile
     rm -rf $packageLocation/$package_signatureFile
     rm -rf $packageLocation/$package_cert
