@@ -85,10 +85,10 @@ modifyAppmanager()
        echo "{\"applications\":" >> $appManagerconf
        echo "    [">> $appManagerconf
        echo "      {">> $appManagerconf
-       echo "         \"displayName\" : \"${APP_NAME}\"" >> $appManagerconf
-       echo "         \"cmdName\" : \"${CMD_NAME}\"" >> $appManagerconf
-       echo "         \"uri\" : \"${APP_LAUNCHER}\"" >> $appManagerconf
-       echo "         \"applicationType\" : \"${APP_TYPE}\"" >> $appManagerconf
+       echo "         \"displayName\" : \"${APP_NAME}\"," >> $appManagerconf
+       echo "         \"cmdName\" : \"${CMD_NAME}\"," >> $appManagerconf
+       echo "         \"uri\" : \"${APP_LAUNCHER}\"," >> $appManagerconf
+       echo "         \"applicationType\" : \"${APP_TYPE}\"," >> $appManagerconf
        if [ "$APP_VERSION" != "" ]; then
           echo "      \"version\" : \"${APP_VERSION}\"" >> $appManagerconf
        fi
@@ -104,10 +104,10 @@ modifyAppmanager()
     if [ "$APP_VERSION" != "" ]; then
         sed -i "$count i \"version\" : \"${APP_VERSION}\"" $appManagerconf
     fi
-    sed -i "$count i     \"applicationType\" : \"${APP_TYPE}\"" $appManagerconf
-    sed -i "$count i     \"uri\" : \"${APP_LAUNCHER}\"" $appManagerconf
-    sed -i "$count i     \"cmdName\" : \"${CMD_NAME}\"" $appManagerconf
-    sed -i "$count i     \"displayName\" : \"${APP_NAME}\"" $appManagerconf
+    sed -i "$count i     \"applicationType\" : \"${APP_TYPE}\"," $appManagerconf
+    sed -i "$count i     \"uri\" : \"${APP_LAUNCHER}\"," $appManagerconf
+    sed -i "$count i     \"cmdName\" : \"${CMD_NAME}\"," $appManagerconf
+    sed -i "$count i     \"displayName\" : \"${APP_NAME}\"," $appManagerconf
     sed -i "$count i     {" $appManagerconf
     sed -i "$count i     }," $appManagerconf
 } 
