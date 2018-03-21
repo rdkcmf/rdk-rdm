@@ -20,6 +20,8 @@
 
 # Logging to verify USB status
 LOG_FILE="/opt/logs/rdm_status.log"
+# For cleanup maintain an entry for all USB App
+USB_APPS="/opt/usbApp.txt"
 
 log_msg() {
   #get current dateandtime
@@ -88,9 +90,11 @@ modifyAppmanager()
        echo "         \"displayName\" : \"${APP_NAME}\"," >> $appManagerconf
        echo "         \"cmdName\" : \"${CMD_NAME}\"," >> $appManagerconf
        echo "         \"uri\" : \"${APP_LAUNCHER}\"," >> $appManagerconf
-       echo "         \"applicationType\" : \"${APP_TYPE}\"," >> $appManagerconf
        if [ "$APP_VERSION" != "" ]; then
-          echo "      \"version\" : \"${APP_VERSION}\"" >> $appManagerconf
+          echo "         \"applicationType\" : \"${APP_TYPE}\"," >> $appManagerconf
+          echo "         \"version\" : \"${APP_VERSION}\"" >> $appManagerconf
+       else
+          echo "         \"applicationType\" : \"${APP_TYPE}\"" >> $appManagerconf
        fi
        echo "      }">> $appManagerconf
        echo "    ]">> $appManagerconf
@@ -102,16 +106,17 @@ modifyAppmanager()
    count=$(grep -n -m 1 "[[:space:]]*}[[:space:]]*$" $appManagerconf | cut -f1 -d: )
 # Insert if version present
     if [ "$APP_VERSION" != "" ]; then
-        sed -i "$count i \"version\" : \"${APP_VERSION}\"" $appManagerconf
+        sed -i "$count i     \"version\" : \"${APP_VERSION}\"" $appManagerconf
+        sed -i "$count i     \"applicationType\" : \"${APP_TYPE}\"," $appManagerconf
+    else
+        sed -i "$count i     \"applicationType\" : \"${APP_TYPE}\"" $appManagerconf
     fi
-    sed -i "$count i     \"applicationType\" : \"${APP_TYPE}\"," $appManagerconf
     sed -i "$count i     \"uri\" : \"${APP_LAUNCHER}\"," $appManagerconf
     sed -i "$count i     \"cmdName\" : \"${CMD_NAME}\"," $appManagerconf
     sed -i "$count i     \"displayName\" : \"${APP_NAME}\"," $appManagerconf
     sed -i "$count i     {" $appManagerconf
     sed -i "$count i     }," $appManagerconf
 } 
-
 
 # Extract & validate Signed package resides at given USB 
 # mount point.  
@@ -138,11 +143,11 @@ do
 # Create package directory to extract tarball
     packageDir="${fileName%.*}"
     packageLocation="${filePath}"/"${packageDir}"
-    # Check if given package has already been extracted & corresponding
-    # entry has already been made in the App Manager
-    if [ -d $packageLocation ] && [ -f $packageLocation/appMgrUpdated.txt ]; then
-        log_msg "Package $file has already been extracted & updated"
-        continue
+# Check if given package has already been extracted then remove it
+    if [ -d $packageLocation ]; then
+        log_msg "Package $file has already extracted"
+        log_msg "Removing package to extract & reValidate"
+        rm -rf ${packageLocation}
     fi
     mkdir -p "${filePath}"/"${packageDir}"
     tar -xvf "${file}" -C "${filePath}"/"${packageDir}"
@@ -208,10 +213,13 @@ do
     # Clean up if fail to modify the App manager 
     if [ $? -ne 0 ]; then
        rm -rf $packageLocation/*
+    else
+    # Append App name and App laucher for the package
+    # installed from USB to cleanup the package entry
+    # when USB got detached
+       echo $APP_NAME >> $USB_APPS
+       echo $APP_LAUNCHER >> $USB_APPS
     fi
-    # Create a txt indicating that app manager for given package
-    # has been updated
-    touch $packageLocation/appMgrUpdated.txt
     rm -rf $packageLocation/$package_tarFile
     rm -rf $packageLocation/$package_signatureFile
     rm -rf $packageLocation/$package_cert
