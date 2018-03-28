@@ -205,21 +205,46 @@ do
     # Modify app launcher reference
     cmd=`echo $APP_LAUNCHER | xargs basename`
 
-    APP_LAUNCHER=`find $packageLocation -name $cmd` 
+    APP_LAUNCHER=`find $packageLocation -name $cmd`
+
+	# Verify that App launcher is present
+	if [ "$APP_LAUNCHER" = "" ]; then
+	    log_msg "Launcher $cmd is missing for App $APP_NAME"
+		continue
+	fi	
+
     # provide execution access to app launcher
     chmod +x $APP_LAUNCHER
-    # Modify App manager for package
-    modifyAppmanager
-    # Clean up if fail to modify the App manager 
-    if [ $? -ne 0 ]; then
-       rm -rf $packageLocation/*
-    else
-    # Append App name and App laucher for the package
-    # installed from USB to cleanup the package entry
-    # when USB got detached
-       echo $APP_NAME >> $USB_APPS
-       echo $APP_LAUNCHER >> $USB_APPS
-    fi
+    while [ 1 ]
+    do
+        if [ ! -d "/opt" ]; then
+            # /opt not mounted yet, moving out
+            log_msg "Directory /opt not present, moving out"
+            break
+        fi  
+        # verify that one process can modify file at a time
+        mkdir /opt/UpdateInProgress &> /dev/null
+        if [ "$?" = "0"  ]; then
+          # Modify App manager for package
+          modifyAppmanager
+          # Clean up if fail to modify the App manager
+          if [ $? -ne 0 ]; then
+             rm -rf $packageLocation/*
+          else
+          # Append App name and App laucher for the package
+          # installed from USB to cleanup the package entry
+          # when USB got detached
+             echo $APP_NAME >> $USB_APPS
+             echo $APP_LAUNCHER >> $USB_APPS
+          fi
+          rm -rf /opt/UpdateInProgress
+          break
+        else
+          echo "continue to wait...."
+          sleep 1
+        fi
+    done
+
     rm -rf $packageLocation/$package_tarFile
     rm -rf $packageLocation/$package_signatureFile
     rm -rf $packageLocation/$package_cert
