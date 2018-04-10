@@ -20,8 +20,6 @@
 
 # Logging to verify USB status
 LOG_FILE="/opt/logs/rdm_status.log"
-# For cleanup maintain an entry for all USB App
-USB_APPS="/opt/usbApp.txt"
 
 log_msg() {
   #get current dateandtime
@@ -42,81 +40,13 @@ log_msg() {
   echo "[$DateTime] [pid=$$] $STR" >>$LOG_FILE
 }
 
-appManagerconf="/opt/appmanagerregistry.conf"
-
-# Initialize package attributes
-APP_NAME=""
-APP_TYPE=""
-APP_VERSION=""
-APP_LAUNCHER=""
-CMD_NAME=""
 packageLocation=""
-appConfigFile=""
 # Query RFC to check if USB auto mount Enabled or not
 USBMOUNT_ENABLE=`/usr/bin/tr181Set -g Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.USB_AutoMount.Enable 2>&1 > /dev/null`
 if [ "x$USBMOUNT_ENABLE" != "xtrue" ]; then
     log_msg "USB AutoMount is DISABLED for this device"
     exit 0
 fi
-
-# Subroutine to read application config file
-readAppConfig()
-{
-    # defining with default values
-    APP_CONFIG=$1
-    APP_NAME=""
-    CMD_NAME=""
-    APP_LAUNCHER=""
-    APP_TYPE=""
-    APP_VERSION=""
-    
-    log_msg "Reading config file $APP_CONFIG"
-    APP_NAME=`cat $APP_CONFIG | grep -w \"displayName\" | tail -1 | cut -d\" -f4`
-    CMD_NAME=`cat $APP_CONFIG | grep -w \"cmdName\" | tail -1 | cut -d\" -f4`
-    APP_LAUNCHER=`cat $APP_CONFIG | grep -w \"uri\" | tail -1 | cut -d\" -f4`
-    APP_TYPE=`cat $APP_CONFIG | grep -w \"applicationType\" | tail -1 | cut -d\" -f4`
-    APP_VERSION=`cat $APP_CONFIG | grep -w \"version\" | tail -1 | cut -d\" -f4`
-}
-
-# Subroutine to modify appmanagerregistry
-modifyAppmanager()
-{
-   # modify app manager config file
-   # Create new entry to app manager config file
-   if [ ! -f "$appManagerconf" ]; then
-       echo "{\"applications\":" >> $appManagerconf
-       echo "    [">> $appManagerconf
-       echo "      {">> $appManagerconf
-       echo "         \"displayName\" : \"${APP_NAME}\"," >> $appManagerconf
-       echo "         \"cmdName\" : \"${CMD_NAME}\"," >> $appManagerconf
-       echo "         \"uri\" : \"${APP_LAUNCHER}\"," >> $appManagerconf
-       if [ "$APP_VERSION" != "" ]; then
-          echo "         \"applicationType\" : \"${APP_TYPE}\"," >> $appManagerconf
-          echo "         \"version\" : \"${APP_VERSION}\"" >> $appManagerconf
-       else
-          echo "         \"applicationType\" : \"${APP_TYPE}\"" >> $appManagerconf
-       fi
-       echo "      }">> $appManagerconf
-       echo "    ]">> $appManagerconf
-       echo "}">> $appManagerconf
-       return
-   fi
-
-   # Appending new entry in config file
-   count=$(grep -n -m 1 "[[:space:]]*}[[:space:]]*$" $appManagerconf | cut -f1 -d: )
-# Insert if version present
-    if [ "$APP_VERSION" != "" ]; then
-        sed -i "$count i     \"version\" : \"${APP_VERSION}\"" $appManagerconf
-        sed -i "$count i     \"applicationType\" : \"${APP_TYPE}\"," $appManagerconf
-    else
-        sed -i "$count i     \"applicationType\" : \"${APP_TYPE}\"" $appManagerconf
-    fi
-    sed -i "$count i     \"uri\" : \"${APP_LAUNCHER}\"," $appManagerconf
-    sed -i "$count i     \"cmdName\" : \"${CMD_NAME}\"," $appManagerconf
-    sed -i "$count i     \"displayName\" : \"${APP_NAME}\"," $appManagerconf
-    sed -i "$count i     {" $appManagerconf
-    sed -i "$count i     }," $appManagerconf
-} 
 
 # Extract & validate Signed package resides at given USB 
 # mount point.  
@@ -139,20 +69,21 @@ do
     filePath=`echo $file | xargs dirname` 
     log_msg $fileName
     log_msg $filePath
-# extract the package tar ball
-# Create package directory to extract tarball
+    # extract the package tar ball
+    # Create package directory to extract tarball
     packageDir="${fileName%.*}"
-    packageLocation="${filePath}"/"${packageDir}"
-# Check if given package has already been extracted then remove it
+    destn_path=`echo $packageDir | cut -d "-" -f1`
+    packageLocation="${filePath}"/"${destn_path}"
+    # Check if given package has already been extracted then remove it
     if [ -d $packageLocation ]; then
         log_msg "Package $file has already extracted"
         log_msg "Removing package to extract & reValidate"
         rm -rf ${packageLocation}
     fi
-    mkdir -p "${filePath}"/"${packageDir}"
-    tar -xvf "${file}" -C "${filePath}"/"${packageDir}"
+    mkdir -p "${packageLocation}"
+    tar -xvf "${file}" -C "${packageLocation}"
         
-# verify if all required files present
+    # verify if all required files present
     package_signatureFile=`ls $packageLocation/*.sig| xargs basename`
     if [ ! -f $packageLocation/$package_signatureFile ];then
         log_msg "Signature does not exists"
@@ -164,7 +95,7 @@ do
         exit 1
     fi
 
-# both tar & ipk format supported
+    # both tar & ipk format supported
     package_tarFile=`ls $packageLocation/*.{tar,ipk}| xargs basename`
     if [ ! -f $packageLocation/$package_tarFile ];then
         log_msg "Packaged does not exists"
@@ -172,7 +103,7 @@ do
     fi
     log_msg "$packageLocation $package_tarFile"
 
-# openssl Signature verification 
+    # openssl Signature verification 
     sh /etc/rdm/opensslVerifier.sh ${packageLocation}/ ${package_tarFile} ${package_signatureFile} "openssl" ${package_cert}
     if [ $? -ne 0 ] ; then
        log_msg "Signature validation failed"
@@ -183,7 +114,7 @@ do
        exit 1
     fi
         
-# extract final package
+    # extract final package
     package_extension="${package_tarFile##*.}"
     case "${package_extension}" in
     ipk)
@@ -197,31 +128,8 @@ do
     ;; 
     esac
  
-    # find Package config file named appmanagerregistry.conf
-    appConfigFile=`find $packageLocation/ -name appmanagerregistry.conf`
-
-    # Read config file
-    readAppConfig ${appConfigFile}
-    # Modify app launcher reference
-    cmd=`echo $APP_LAUNCHER | xargs basename`
-
-    APP_LAUNCHER=`find $packageLocation -name $cmd` 
-    # provide execution access to app launcher
-    chmod +x $APP_LAUNCHER
-    # Modify App manager for package
-    modifyAppmanager
-    # Clean up if fail to modify the App manager 
-    if [ $? -ne 0 ]; then
-       rm -rf $packageLocation/*
-    else
-    # Append App name and App laucher for the package
-    # installed from USB to cleanup the package entry
-    # when USB got detached
-       echo $APP_NAME >> $USB_APPS
-       echo $APP_LAUNCHER >> $USB_APPS
-    fi
     rm -rf $packageLocation/$package_tarFile
     rm -rf $packageLocation/$package_signatureFile
     rm -rf $packageLocation/$package_cert
-# End of loop to validate all USB packages
+    # End of loop to validate all USB packages
 done
