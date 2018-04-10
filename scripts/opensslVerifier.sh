@@ -42,6 +42,40 @@ else
      log_msg "Inputs: [path: $WORKDIR, pkg: $PACKAGE_FILE, sig: $SIGNATURE_FILE sig_type: $SIGNATURE_TYPE]"
 fi
 
+# Additional parameter verification ceritifcate
+# is needed for Signature Validation
+if [ "$SIGNATURE_TYPE" = "openssl" ]; then
+    CERT=$5
+    if [ ! $CERT ] ; then
+        log_msg "Wrong Input Cert is missing [Cert: $CERT]"
+        exit 1
+    fi
+fi
+
+# Sub routine to validate cert
+validateCert()
+{
+    # Default use RDK CA Chain of trust for Cert validation
+    RDK_CA_NAME="comcast-rdk-ca-chain.cert.pem"
+    # Default path to locate RDK CA into firmware
+    SSL_PATH="/etc/ssl"
+    RDK_CA_PATH=`find ${SSL_PATH} -name ${RDK_CA_NAME} -type f | head -n1`
+    if [ ! $RDK_CA_PATH ]; then
+        log_msg "RDK CA Chain missing from firmware"
+        exit 1
+    fi
+    VER_CERT=${WORKDIR}/${CERT}
+	# Validate Certificate
+    #openssl verify -CAfile ${RDK_CA_PATH}/${RDK_CA_NAME} ${VER_CERT}	
+    openssl verify -CAfile ${RDK_CA_PATH} ${VER_CERT}	
+    if [ $? -ne 0 ]; then
+         log_msg "Certificate $CERT Validation Failed"
+         exit 1
+    else
+         log_msg "Certificate $CERT Validated Successfully"
+    fi
+}
+
 # Decode the RSA Public Key
 if [ "$SIGNATURE_TYPE" = "kms" ];then
         log_msg "Package with KMS signature"
@@ -52,6 +86,31 @@ if [ "$SIGNATURE_TYPE" = "kms" ];then
         cat $WORKDIR/$SIGNATURE_FILE
         # Decrypt the Key for Codebig
         $CONFIGPARAMGEN jx $KMS_RSA_PUBLIC_KEY_FILE $KMS_INTERMEDIATE_RSA_KEY_FILE
+elif [ "$SIGNATURE_TYPE" = "openssl" ]; then
+        # verification certificate 
+        VER_CERT=${WORKDIR}/${CERT}
+        RSA_KEY_FILE="${WORKDIR}/PUB.KEY"
+        validateCert;
+        #generate intermediate verification key from cert
+        openssl x509 -in $VER_CERT -pubkey -noout > $RSA_KEY_FILE
+        # Signature validation performed using CA certified
+        # Perform signature validation
+        openssl x509 -in $VER_CERT -pubkey -noout > /tmp/pubkey.pem
+        cd ${WORKDIR}
+        openssl dgst -sha256 -verify /tmp/pubkey.pem -signature ${SIGNATURE_FILE} ${PACKAGE_FILE}
+        if [ $? -ne 0 ]; then
+            log_msg "Signature validation Failed"
+            rm -rf $RSA_KEY_FILE $VER_CERT
+            exit 2
+        else
+            log_msg "Signature validation Successful"
+            rm -rf $RSA_KEY_FILE $VER_CERT
+            exit 0
+       fi
+       if [ -f /tmp/pubkey.pem ];then
+            rm -rf /tmp/pubkey.pem
+       fi
+       cd -
 else
         # TODO we can add more Signature Type validation here
         log_msg "Unknown Signature Type"
