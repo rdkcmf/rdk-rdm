@@ -55,7 +55,6 @@ if [ ! -d $USB_MOUNT_POINT ]; then
     log_msg "Mount point $USB_MOUNT_POINT does not exists"
 fi
 # Check if any signed tarball present
-packagedFile="$(find $USB_MOUNT_POINT -name '*.tar' -type f)"
 # Loop to validate all packages resides at USB Mount point
 for file in `find $USB_MOUNT_POINT -name '*.tar' -type f`
 do
@@ -72,13 +71,13 @@ do
     # extract the package tar ball
     # Create package directory to extract tarball
     packageDir="${fileName%.*}"
-    destn_path=`echo $packageDir | cut -d "-" -f1`
-    packageLocation="${filePath}"/"${destn_path}"
+    destn_path=`echo ${packageDir%-*}`
+    packageLocation="${filePath}/.rdm_tmp"
     # Check if given package has already been extracted then remove it
     if [ -d $packageLocation ]; then
         log_msg "Package $file has already extracted"
         log_msg "Removing package to extract & reValidate"
-        rm -rf ${packageLocation}
+        rm -rf ${packageLocation}/*
     fi
     mkdir -p "${packageLocation}"
     tar -xvf "${file}" -C "${packageLocation}"
@@ -96,7 +95,7 @@ do
     fi
 
     # both tar & ipk format supported
-    package_tarFile=`ls $packageLocation/*.{tar,ipk}| xargs basename`
+    package_tarFile=`ls $packageLocation/*.tar| xargs basename`
     if [ ! -f $packageLocation/$package_tarFile ];then
         log_msg "Packaged does not exists"
         exit 1
@@ -104,7 +103,7 @@ do
     log_msg "$packageLocation $package_tarFile"
 
     # openssl Signature verification 
-    sh /etc/rdm/opensslVerifier.sh ${packageLocation}/ ${package_tarFile} ${package_signatureFile} "openssl" ${package_cert}
+    sh /etc/rdm/opensslVerifier.sh ${packageLocation} ${package_tarFile} ${package_signatureFile} "openssl" ${package_cert}
     if [ $? -ne 0 ] ; then
        log_msg "Signature validation failed"
        rm -rf $packageLocation/$package_tarFile
@@ -121,7 +120,7 @@ do
         ar -x ${packageLocation}/${package_tarFile}
     ;;
     tar)
-        tar -xvf ${packageLocation}/${package_tarFile} -C ${packageLocation}
+        tar -xvf ${packageLocation}/${package_tarFile} -C ${filePath}
     ;;
     *)
         log_msg "Package extension $package_extension not supported"

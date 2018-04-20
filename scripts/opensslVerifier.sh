@@ -53,14 +53,15 @@ validateCert()
     RDK_CA_NAME="comcast-rdk-ca-chain.cert.pem"
     # Default path to locate RDK CA into firmware
     SSL_PATH="/etc/ssl"
-    RDK_CA_PATH=`find ${SSL_PATH} -name ${RDK_CA_NAME} -type f | xargs dirname`
+    RDK_CA_PATH=`find ${SSL_PATH} -name ${RDK_CA_NAME} -type f | head -n1`
     if [ ! $RDK_CA_PATH ]; then
         log_msg "RDK CA Chain missing from firmware"
         exit 1
     fi
     VER_CERT=${WORKDIR}/${CERT}
 	# Validate Certificate
-    openssl verify -CAfile ${RDK_CA_PATH}/${RDK_CA_NAME} ${VER_CERT}	
+    #openssl verify -CAfile ${RDK_CA_PATH}/${RDK_CA_NAME} ${VER_CERT}	
+    openssl verify -CAfile ${RDK_CA_PATH} ${VER_CERT}	
     if [ $? -ne 0 ]; then
          log_msg "Certificate $CERT Validation Failed"
          exit 1
@@ -95,7 +96,9 @@ elif [ "$SIGNATURE_TYPE" = "openssl" ]; then
         openssl x509 -in $VER_CERT -pubkey -noout > $RSA_KEY_FILE
         # Signature validation performed using CA certified
         # Perform signature validation
-        openssl dgst -sha256 -verify $RSA_KEY_FILE -signature ${WORKDIR}/${SIGNATURE_FILE} ${WORKDIR}/${PACKAGE_FILE} 
+        openssl x509 -in $VER_CERT -pubkey -noout > /tmp/pubkey.pem
+        cd ${WORKDIR}
+        openssl dgst -sha256 -verify /tmp/pubkey.pem -signature ${SIGNATURE_FILE} ${PACKAGE_FILE}
         if [ $? -ne 0 ]; then
             log_msg "Signature validation Failed"
 			echo "Signature validation Failed" >> $LOG_FILE
@@ -107,6 +110,10 @@ elif [ "$SIGNATURE_TYPE" = "openssl" ]; then
             rm -rf $RSA_KEY_FILE $VER_CERT
             exit 0
        fi
+       if [ -f /tmp/pubkey.pem ];then
+            rm -rf /tmp/pubkey.pem
+       fi
+       cd -
 else
         # TODO we can add more Signature Type validation here
         log_msg "Unknown Signature Type"
