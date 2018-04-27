@@ -54,6 +54,13 @@ USB_MOUNT_POINT=$1
 if [ ! -d $USB_MOUNT_POINT ]; then
     log_msg "Mount point $USB_MOUNT_POINT does not exists"
 fi
+
+if [ ! -d ${USB_MOUNT_POINT}/partnerapps ];then
+     mkdir -p ${USB_MOUNT_POINT}/partnerapps
+else
+     rm -rf ${USB_MOUNT_POINT}/partnerapps/*
+fi
+
 # Check if any signed tarball present
 # Loop to validate all packages resides at USB Mount point
 for file in `find $USB_MOUNT_POINT -name '*.tar' -type f`
@@ -120,7 +127,7 @@ do
         ar -x ${packageLocation}/${package_tarFile}
     ;;
     tar)
-        tar -xvf ${packageLocation}/${package_tarFile} -C ${filePath}
+        tar -xvf ${packageLocation}/${package_tarFile} -C ${USB_MOUNT_POINT}/partnerapps
     ;;
     *)
         log_msg "Package extension $package_extension not supported"

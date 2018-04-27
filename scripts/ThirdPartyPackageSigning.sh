@@ -131,7 +131,8 @@ fi
 # Script subjected to modify if above assumption does not meet
 
 if [ -d ${PACKAGE_PATH} ];then
-     tar -cvf $WORK_PATH/$APP_NAME.tar ${PACKAGE_PATH}/
+     cd ${PACKAGE_PATH}/
+     tar -cvf $WORK_PATH/$APP_NAME.tar ./
 fi
 
 cd $WORK_PATH
