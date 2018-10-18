@@ -34,6 +34,7 @@ PEER_COMM_DAT="/etc/dropbear/elxrretyt.swr"
 PEER_COMM_ID="/tmp/elxrretyt-$$.swr"
 CONFIGPARAMGEN=/usr/bin/configparamgen
 APPLN_HOME_PATH=/tmp/${DOWNLOAD_APP_MODULE}
+APP_MOUNT_PATH=/media/apps
 
 usage()
 {
@@ -429,7 +430,7 @@ if [ "$DOWNLOAD_APP_SIZE" ];then
          FINAL_DOWNLOAD_APP_SIZE=$value$scale
          log_msg "App Size is $FINAL_DOWNLOAD_APP_SIZE"
      fi
-     if [ "$APPLN_HOME_PATH" != "$SD_CARD_APP_MOUNT_PATH/${DOWNLOAD_APP_MODULE}" ]; then
+     if [ "$APPLN_HOME_PATH" != "$APP_MOUNT_PATH/${DOWNLOAD_APP_MODULE}" ]; then
          if [ -d $APPLN_HOME_PATH ];then rm -rf $APPLN_HOME_PATH/* ; fi
          mountFlag=`mount | grep $APPLN_HOME_PATH`
          if [ "$mountFlag" ];then umount $APPLN_HOME_PATH ; fi
@@ -555,7 +556,7 @@ if [ $? -ne 0 ];then
 fi
 
 log_msg "$DOWNLOAD_LOCATION// CleanUp"
-if [ "$APPLN_HOME_PATH" != "$SD_CARD_APP_MOUNT_PATH/${DOWNLOAD_APP_MODULE}" ]; then
+if [ "$APPLN_HOME_PATH" != "$APP_MOUNT_PATH/${DOWNLOAD_APP_MODULE}" ]; then
     rm -rf $DOWNLOAD_LOCATION/$downloadFile
 fi
 rm -rf $DOWNLOAD_LOCATION/*.ipk
