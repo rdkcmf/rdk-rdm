@@ -303,6 +303,9 @@ applicationDownload()
            CURL_CMD="curl $TLS $IF_OPTION -fgL --connect-timeout $CURL_TLS_TIMEOUT  -H '$authorizationHeader' -w '%{http_code}\n' -o \"$DOWNLOAD_LOCATION/$downloadFile\" '$serverUrl' > $HTTP_CODE"
            sendDownloadRequest "$CURL_CMD"
     fi
+    if [ -f $DOWNLOAD_LOCATION/$downloadFile ];then
+         log_msg "Size Info After Download: `ls -lh $DOWNLOAD_LOCATION/$downloadFile`"
+    fi
 }
 
 applicationExtraction()
@@ -486,31 +489,54 @@ else
     if [ -f $DOWNLOAD_LOCATION/packages.list ];then
         while read -r finalPackage
         do
+          loop=0
           extension="${finalPackage##*.}"
           log_msg "Extracting the Package: ${finalPackage} ${extension}"
-          case "${extension}" in
-          ipk )
-               ar -x $finalPackage
-               umask 544
-               tar -xzvf data.tar.gz -C $APPLN_HOME_PATH/
-               if [ -f $DOWNLOAD_LOCATION/debian-binary ];then
-                    rm -rf $DOWNLOAD_LOCATION/debian-binary
+          while [ $loop -lt 2 ]
+          do
+             loop=`expr $loop + 1`
+             case "${extension}" in
+             ipk )
+                log_msg "Size of ipk [$finalPackage]: `ls -lh $finalPackage`"
+                ar -x $finalPackage
+                if [ $? -ne 0 ];then
+                     log_msg "IPK Extraction of $finalPackage Failed.."
+                else    
+                     umask 544
+                     log_msg "Size of data [data.tar.gz]: `ls -lh data.tar.gz`"
+                     tar -xzvf data.tar.gz -C $APPLN_HOME_PATH/
+                     if [ $? -ne 0 ];then
+                          log_msg "tar Extraction Failed for data.tar.gz"
+                     else
+                          loop=2
+                     fi
+                fi 
+                if [ -f $DOWNLOAD_LOCATION/debian-binary ];then
+                     rm -rf $DOWNLOAD_LOCATION/debian-binary
+                fi
+                if [ -f $DOWNLOAD_LOCATION/control.tar.gz ];then
+                     rm -rf $DOWNLOAD_LOCATION/control.tar.gz
+                fi
+                if [ -f $DOWNLOAD_LOCATION/data.tar.gz ];then
+                     rm -rf $DOWNLOAD_LOCATION/data.tar.gz
+                fi
+             ;;
+             tar )
+               log_msg "Size of data [$finalPackage]: `ls -lh $finalPackage`"
+               tar -xvf $finalPackage -C $APPLN_HOME_PATH/
+               if [ $? -ne 0 ];then
+                     log_msg "tar Extraction Failed for data.tar.gz"
+               else
+                     loop=2
                fi
-               if [ -f $DOWNLOAD_LOCATION/control.tar.gz ];then
-                    rm -rf $DOWNLOAD_LOCATION/control.tar.gz
-               fi
-               if [ -f $DOWNLOAD_LOCATION/data.tar.gz ];then
-                    rm -rf $DOWNLOAD_LOCATION/data.tar.gz
-               fi
-          ;;
-          tar )
-              tar -xvf $finalPackage -C $APPLN_HOME_PATH/
-          ;;
-          *)
-             log_msg "Unknown Package Extension"
-             break
-          ;;
-          esac
+             ;;
+             *)
+              log_msg "Unknown Package Extension"
+              break
+             ;;
+             esac
+          done
+
           if [ -f ./${finalPackage} ];then
                log_msg "Removing $finalPackage after Extraction"
                rm -rf ./$finalPackage
