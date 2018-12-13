@@ -279,7 +279,7 @@ applicationDownload()
           fi
     fi
 
-    CURL_CMD="curl $TLS $IF_OPTION -fgL $CURL_OPTION '%{http_code}\n' -o \"$DOWNLOAD_LOCATION/$downloadFile\" \"$downloadUrl\" --connect-timeout $CURL_TLS_TIMEOUT -m 20"
+    CURL_CMD="curl $TLS $IF_OPTION -fgL $CURL_OPTION '%{http_code}\n' -o \"$DOWNLOAD_LOCATION/$downloadFile\" \"$downloadUrl\" --connect-timeout $CURL_TLS_TIMEOUT -m 600"
     echo $CURL_CMD
     sendDownloadRequest "${CURL_CMD}"
     
