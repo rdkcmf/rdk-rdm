@@ -48,12 +48,6 @@ if [ "$SIGNATURE_TYPE" = "kms" ];then
         CONFIGPARAMGEN=/usr/bin/configparamgen
         KMS_RSA_PUBLIC_KEY_FILE=/etc/rdm/vjyrepbsb.ijv
         KMS_INTERMEDIATE_RSA_KEY_FILE=${WORKDIR}/vstuvwx.file
-        # Since KMS is adding 3 Bytes of Header, need to remove this before validation
-        # KMS Header Removal from the Signature
-        if [ -f "$WORKDIR/$SIGNATURE_FILE" ];then
-              log_msg "Removing the KMS Prefix Header"
-              dd if="$WORKDIR/$SIGNATURE_FILE" of="$WORKDIR/$SIGNATURE_FILE.truncated" bs=6 skip=1 && mv "$WORKDIR/$SIGNATURE_FILE.truncated" "$WORKDIR/$SIGNATURE_FILE" 
-        fi
         # TODO Will remove this line once the code is stable
         cat $WORKDIR/$SIGNATURE_FILE
         # Decrypt the Key for Codebig

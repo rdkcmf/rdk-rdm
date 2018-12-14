@@ -438,15 +438,26 @@ if [ "$DOWNLOAD_APP_SIZE" ];then
 fi 
 
 # Extract the Package
-log_msg "Extracting The Package $url/${DOWNLOAD_PKG_NAME}"
-applicationExtraction $url/${DOWNLOAD_PKG_NAME}
+package_signatureFile=`ls $DOWNLOAD_LOCATION/*-pkg.sig| xargs basename`
+package_tarFile=`ls $DOWNLOAD_LOCATION/*-pkg.tar| xargs basename`
+pkg_extracted=false
+# Keeping backup of signature and tarball on secondary storage to avoid top level package extraction on every reboot
+# As extraction could account for the SD card write cycle on every reboot.
+if ! [[  -f $DOWNLOAD_LOCATION/$package_signatureFile && -f $DOWNLOAD_LOCATION/$package_tarFile ]]; then
+    log_msg "Extracting The Package $url/${DOWNLOAD_PKG_NAME}"
+    applicationExtraction $url/${DOWNLOAD_PKG_NAME}
+else
+    pkg_extracted=true
+fi
 
 package_tarFile=`ls $DOWNLOAD_LOCATION/*-pkg.tar| xargs basename`
 log_msg "Intermediate PKG File: $package_tarFile"
 if [ $package_tarFile ] && [ -f $DOWNLOAD_LOCATION/$package_tarFile ];then
       ls -l $DOWNLOAD_LOCATION/$package_tarFile
       hashVal=`sha256sum $DOWNLOAD_LOCATION/$package_tarFile | cut -d " " -f1`
-      tar -xvf $DOWNLOAD_LOCATION/$package_tarFile -C $DOWNLOAD_LOCATION/
+      if [ "x$pkg_extracted" != "xtrue" ]; then
+          tar -xvf $DOWNLOAD_LOCATION/$package_tarFile -C $DOWNLOAD_LOCATION/
+      fi
 fi
 
 package_signatureFile=`ls $DOWNLOAD_LOCATION/*-pkg.sig| xargs basename`
@@ -520,6 +531,13 @@ if [ "$PKG_AUTHENTICATION" = "kms" ];then
      sh /etc/rdm/kmsVerify.sh ${DOWNLOAD_LOCATION} $keyVal $hashVal $signVal
 elif [ "$PKG_AUTHENTICATION" = "openssl" ];then
      log_msg "openSSL Validation on the Package"
+     if [ "x$pkg_extracted" != "xtrue" ]; then
+        # Since KMS is adding 6 Bytes of Header, need to remove this before validation
+        # KMS Header Removal from the Signature
+         log_msg "Removing the KMS Prefix Header"
+         dd if="$DOWNLOAD_LOCATION/$package_signatureFile" of="$DOWNLOAD_LOCATION/$package_signatureFile.truncated" bs=6 skip=1 && mv "$DOWNLOAD_LOCATION/$package_signatureFile.truncated" "$DOWNLOAD_LOCATION/$package_signatureFile"
+     fi
+
      sh /etc/rdm/opensslVerifier.sh ${DOWNLOAD_LOCATION}/ $package_tarFile $package_signatureFile "kms"
 else
      log_msg "Application Download Not possible without Authentication"
@@ -540,8 +558,5 @@ log_msg "$DOWNLOAD_LOCATION// CleanUp"
 if [ "$APPLN_HOME_PATH" != "$SD_CARD_APP_MOUNT_PATH/${DOWNLOAD_APP_MODULE}" ]; then
     rm -rf $DOWNLOAD_LOCATION/$downloadFile
 fi
-rm -rf $DOWNLOAD_LOCATION/$package_tarFile
-rm -rf $DOWNLOAD_LOCATION/$package_signatureFile
-rm -rf $DOWNLOAD_LOCATION/$package_keyFile
 rm -rf $DOWNLOAD_LOCATION/*.ipk
 exit 0
