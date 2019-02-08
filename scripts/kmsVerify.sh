@@ -46,12 +46,7 @@ DOWNLOAD_APP_INTERMEDIATE_KMS_KEY_FILE=$HOME_PATH/pqrstuz.file
 DOWNLOAD_APP_INTERMEDIATE_KEY_FILE=$HOME_PATH/rstuvwz.file
 
 if [ ! -x $CONFIGPARAMGEN ];then
-        log_msg "Missing the Binary $CONFIGPARAMGEN for signing"
-        exit 3
-fi
-
-if [ ! -f $DOWNLOAD_APP_CODEBIG_KEY_FILE ];then
-        log_msg "Missing the Codebig Key File: $DOWNLOAD_APP_CODEBIG_KEY_FILE"
+        log_msg "Missing the Binary file for signing"
         exit 3
 fi
 
@@ -73,7 +68,7 @@ JSONSTR="{\"RSA_Verify\":{\"username\":\"$user\",\"password\":\"$pwd\",\"keyname
 
 signVerifyUrl=`$CONFIGPARAMGEN 7`
 if [ ! $signVerifyUrl ];then
-     log_msg "downloadAppVerification: Signed URL is empty, check configparamgen"
+     log_msg "downloadAppVerification: Signed URL is empty"
      exit 1
 fi
 
