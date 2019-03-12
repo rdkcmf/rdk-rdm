@@ -65,7 +65,7 @@ else
       RDM_DOWNLOAD_PATH=$2/rdm
 fi
 
-DOWNLOAD_MGR_PIDFILE=${APPLN_HOME_PATH}/.dlApp${DOWNLOAD_APP_MODULE}.pid
+DOWNLOAD_MGR_PIDFILE=/tmp/.dlApp${DOWNLOAD_APP_MODULE}.pid
 # Ensure only one instance of script is running
 if [ -f $DOWNLOAD_MGR_PIDFILE ];then
    pid=`cat $DOWNLOAD_MGR_PIDFILE`
@@ -73,6 +73,8 @@ if [ -f $DOWNLOAD_MGR_PIDFILE ];then
       log_msg "Another instance of this app $0 is already running..!"
       log_msg "Exiting without starting the $0..!"
       exit 0
+   else
+      $$ > $DOWNLOAD_MGR_PIDFILE
    fi
 else
    echo $$ > $DOWNLOAD_MGR_PIDFILE
@@ -193,7 +195,6 @@ else
     APPLN_HOME_PATH=$2/${DOWNLOAD_APP_NAME}
 fi
 
-DOWNLOAD_MGR_PIDFILE=${APPLN_HOME_PATH}/.dlApp${DOWNLOAD_APP_MODULE}.pid
 DOWNLOAD_LOCATION=$RDM_DOWNLOAD_PATH/downloads/$DOWNLOAD_APP_NAME
 if [ ! -d $DOWNLOAD_LOCATION ];then
        mkdir -p $DOWNLOAD_LOCATION
