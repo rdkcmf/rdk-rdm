@@ -45,6 +45,13 @@ usage()
     log_msg "Optional Arguments: <PACKAGE EXTN>, if not default to <APPLICATION NAME>.ipk"
 }
 
+cleanup()
+{
+    if [ -f $DOWNLOAD_MGR_PIDFILE ];then
+        rm -rf $DOWNLOAD_MGR_PIDFILE
+    fi
+}
+
 # Input Arguments Validation
 # Input Argument: Application Name (Mandatory Field)
 if [ ! "$1" ];then
@@ -66,6 +73,10 @@ else
 fi
 
 DOWNLOAD_MGR_PIDFILE=/tmp/.dlApp${DOWNLOAD_APP_MODULE}.pid
+
+# Upon exit, remove pid file
+trap cleanup EXIT
+
 # Ensure only one instance of script is running
 if [ -f $DOWNLOAD_MGR_PIDFILE ];then
    pid=`cat $DOWNLOAD_MGR_PIDFILE`
@@ -73,8 +84,6 @@ if [ -f $DOWNLOAD_MGR_PIDFILE ];then
       log_msg "Another instance of this app $0 is already running..!"
       log_msg "Exiting without starting the $0..!"
       exit 0
-   else
-      $$ > $DOWNLOAD_MGR_PIDFILE
    fi
 else
    echo $$ > $DOWNLOAD_MGR_PIDFILE
