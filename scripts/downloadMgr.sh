@@ -35,6 +35,8 @@ PEER_COMM_ID="/tmp/elxrretyt-$$.swr"
 CONFIGPARAMGEN=/usr/bin/configparamgen
 APPLN_HOME_PATH=/tmp/${DOWNLOAD_APP_MODULE}
 APP_MOUNT_PATH=/media/apps
+#Read the Download Mgr Url fro RFC
+DEFAULT_URL=`/usr/bin/tr181 -g Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl 2>&1 > /dev/null`
 
 usage()
 {
@@ -293,7 +295,7 @@ applicationDownload()
     CURL_CMD="curl $TLS $IF_OPTION -fgL $CURL_OPTION '%{http_code}\n' -o \"$DOWNLOAD_LOCATION/$downloadFile\" \"$downloadUrl\" --connect-timeout $CURL_TLS_TIMEOUT -m 600"
     echo $CURL_CMD
     sendDownloadRequest "${CURL_CMD}"
-    
+
     if [ $RETRY_STATUS -ne 0 ] && [ "$http_code" == "000" ] && [ -f /usr/bin/configparamgen ];then
          # Retry image download attempts via CodeBig
            log_msg "Failed to download image from normal SSR CDN server"
@@ -392,10 +394,27 @@ elif [ ! -s $RDM_SSR_LOCATION ];then
         exit 1
 else
         url=`cat $RDM_SSR_LOCATION`
+        # Verify the Xconf response in /tmp/.xconfssrdownloadurl
+        if [ "$DEVICE_TYPE" != "broadband" ]; then
+            if [ "$url" == "404" ]; then     
+                log_msg "Received 404 error from Xconf Server, checking RFC for RDM Default url"
+                if  [  ! -z "$DEFAULT_URL" ] && [ "$DEFAULT_URL" == " " ]; then
+                    log_msg "RFC Param Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl is not set"
+                    exit 1
+                else
+                    #Use default url from RFC param
+                    log_msg "Using RDM Default url $DEFAULT_URL to download from the Xconf Server"
+                    url=$DEFAULT_URL
+                fi
+            fi
+            # Enforce HTTPs download for Downloadable modules
+            log_msg "Replacing http with https in curl download request"
+            url=`echo $url | sed "s/http:/https:/g"` 
+        fi
         log_msg "RDM App Download URL Location is $url"
 fi
 
-# Download the File Package  if not already donloaded
+# Download the File Package  if not already downloaded
 if [ ! -f $DOWNLOAD_LOCATION/${DOWNLOAD_PKG_NAME} ]; then
     log_msg "Downloading The Package $url/${DOWNLOAD_PKG_NAME}"
     applicationDownload $url/${DOWNLOAD_PKG_NAME}
