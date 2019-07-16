@@ -175,9 +175,9 @@ downloadApp_getBuildType()
 
 # Generating the Download Package Name from Version.txt
 if [ ! $5 ];then
-     log_msg "Package Name from meta data: /etc/rdm/rdm-manifest.xml"
+     log_msg "Package Name from meta data: /etc/rdm/rdm-manifest.json"
      # Retrive the Appln metadata
-     DOWNLOAD_PKG_NAME=`xmllint --xpath "//application_list/$DOWNLOAD_APP_MODULE/package_name/text()" /etc/rdm/rdm-manifest.xml` 
+     DOWNLOAD_PKG_NAME=`/usr/bin/jsonquery -f /etc/rdm/rdm-manifest.json  --path=//packages/$DOWNLOAD_APP_MODULE/pkg_name`
      log_msg "Meta-data: package name: $DOWNLOAD_PKG_NAME"
 else
      DOWNLOAD_PKG_NAME=$5
@@ -190,9 +190,9 @@ log_msg "DOWNLOAD_APP_MODULE = $DOWNLOAD_APP_MODULE"
 log_msg "PKG_AUTHENTICATION = $PKG_AUTHENTICATION"
 log_msg "PKG_EXTN = $PKG_EXTN"
 
-DOWNLOAD_APP_NAME=`xmllint --xpath "//application_list/$DOWNLOAD_APP_MODULE/app_name/text()" /etc/rdm/rdm-manifest.xml` 
+DOWNLOAD_APP_NAME=`/usr/bin/jsonquery -f /etc/rdm/rdm-manifest.json  --path=//packages/$DOWNLOAD_APP_MODULE/app_name`
 log_msg "Meta-data: package name: $DOWNLOAD_APP_NAME"
-DOWNLOAD_APP_SIZE=`xmllint --xpath "//application_list/$DOWNLOAD_APP_MODULE/app_size/text()" /etc/rdm/rdm-manifest.xml` 
+DOWNLOAD_APP_SIZE=`/usr/bin/jsonquery -f /etc/rdm/rdm-manifest.json  --path=//packages/$DOWNLOAD_APP_MODULE/app_size`
 log_msg "Meta-data: package size: $DOWNLOAD_APP_SIZE"
 
 if [ ! "$DOWNLOAD_APP_NAME" ];then
