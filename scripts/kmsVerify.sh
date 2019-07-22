@@ -79,7 +79,13 @@ authorizationHeader=`echo $signVerifyUrl | sed -e "s|&|\", |g" -e "s|=|=\"|g" -e
 authorizationHeader="Authorization: OAuth $authorizationHeader\""
 jsonHeader="Content-Type: application/json"
 
-CURL_CMD="curl -v --url '$correctURL' -H '$authorizationHeader' -H '$jsonHeader' -w '%{http_code}\n' -o $HOME_PATH/output.txt -d '$JSONSTR'"
+EnableOCSPStapling="/tmp/.EnableOCSPStapling"
+EnableOCSP="/tmp/.EnableOCSPCA"
+if [ -f $EnableOCSPStapling ] || [ -f $EnableOCSP ]; then
+    CURL_CMD="curl -v --cert-status --url '$correctURL' -H '$authorizationHeader' -H '$jsonHeader' -w '%{http_code}\n' -o $HOME_PATH/output.txt -d '$JSONSTR'"
+else
+    CURL_CMD="curl -v --url '$correctURL' -H '$authorizationHeader' -H '$jsonHeader' -w '%{http_code}\n' -o $HOME_PATH/output.txt -d '$JSONSTR'"
+fi
 echo $CURL_CMD
 eval $CURL_CMD > /dev/null
 ret=$?

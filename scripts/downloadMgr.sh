@@ -243,6 +243,9 @@ HTTP_CODE="$APPLN_HOME_PATH/httpcode"
 RETRY_STATUS=1
 http_code=1
 
+EnableOCSPStapling="/tmp/.EnableOCSPStapling"
+EnableOCSP="/tmp/.EnableOCSPCA"
+
 sendDownloadRequest()
 {
     status=1
@@ -301,7 +304,12 @@ applicationDownload()
     # Clean up to clear any previous partial files before downloading new package
     rm -rf $DOWNLOAD_LOCATION/*
     mkdir -p $DOWNLOAD_LOCATION
-    CURL_CMD="curl $TLS $IF_OPTION -fgL $CURL_OPTION '%{http_code}\n' -o \"$DOWNLOAD_LOCATION/$downloadFile\" \"$downloadUrl\" --connect-timeout $CURL_TLS_TIMEOUT -m 600"
+
+    if [ -f $EnableOCSPStapling ] || [ -f $EnableOCSP ]; then
+        CURL_CMD="curl $TLS $IF_OPTION -fgL $CURL_OPTION '%{http_code}\n' -o \"$DOWNLOAD_LOCATION/$downloadFile\" \"$downloadUrl\" --cert-status --connect-timeout $CURL_TLS_TIMEOUT -m 600"
+    else
+        CURL_CMD="curl $TLS $IF_OPTION -fgL $CURL_OPTION '%{http_code}\n' -o \"$DOWNLOAD_LOCATION/$downloadFile\" \"$downloadUrl\" --connect-timeout $CURL_TLS_TIMEOUT -m 600"
+    fi
     echo $CURL_CMD
     sendDownloadRequest "${CURL_CMD}"
 
@@ -321,7 +329,11 @@ applicationDownload()
            serverUrl=`echo $cbSignedimageHTTPURL | sed -e "s|&oauth_consumer_key.*||g"`
            authorizationHeader=`echo $cbSignedimageHTTPURL | sed -e "s|&|\", |g" -e "s|=|=\"|g" -e "s|.*oauth_consumer_key|oauth_consumer_key|g"`
            authorizationHeader="Authorization: OAuth realm=\"\", $authorizationHeader\""
-           CURL_CMD="curl $TLS $IF_OPTION -fgL --connect-timeout $CURL_TLS_TIMEOUT  -H '$authorizationHeader' -w '%{http_code}\n' -o \"$DOWNLOAD_LOCATION/$downloadFile\" '$serverUrl' > $HTTP_CODE"
+           if [ -f $EnableOCSPStapling ] || [ -f $EnableOCSP ]; then
+               CURL_CMD="curl $TLS $IF_OPTION -fgL --cert-status --connect-timeout $CURL_TLS_TIMEOUT  -H '$authorizationHeader' -w '%{http_code}\n' -o \"$DOWNLOAD_LOCATION/$downloadFile\" '$serverUrl' > $HTTP_CODE"
+           else
+               CURL_CMD="curl $TLS $IF_OPTION -fgL --connect-timeout $CURL_TLS_TIMEOUT  -H '$authorizationHeader' -w '%{http_code}\n' -o \"$DOWNLOAD_LOCATION/$downloadFile\" '$serverUrl' > $HTTP_CODE"
+           fi
            sendDownloadRequest "$CURL_CMD"
     fi
     if [ -f $DOWNLOAD_LOCATION/$downloadFile ];then
