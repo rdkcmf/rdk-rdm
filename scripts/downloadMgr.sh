@@ -573,7 +573,8 @@ else
         done <$DOWNLOAD_LOCATION/packages.list
     else
         log_msg "Not Found the Packages List file"
-        exit 0
+        rm -rf $DOWNLOAD_LOCATION/*
+        exit 3
     fi
     chmod -R 544 $APPLN_HOME_PATH/
     log_msg "Download and Extraction Completed"
