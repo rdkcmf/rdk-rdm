@@ -35,8 +35,15 @@ PEER_COMM_ID="/tmp/elxrretyt-$$.swr"
 CONFIGPARAMGEN=/usr/bin/configparamgen
 APPLN_HOME_PATH=/tmp/${DOWNLOAD_APP_MODULE}
 APP_MOUNT_PATH=/media/apps
+
 #Read the Download Mgr Url fro RFC
-DEFAULT_URL=`/usr/bin/tr181 -g Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl 2>&1 > /dev/null`
+if [ "$DEVICE_TYPE" = "broadband" ]; then
+    DEFAULT_URL=`dmcli eRT getv Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl | grep string | awk '{print $5}'`
+else
+    if [ -f /usr/bin/tr181 ];then
+        DEFAULT_URL=`/usr/bin/tr181 -g Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl 2>&1 > /dev/null`
+    fi
+fi
 
 usage()
 {
@@ -394,23 +401,23 @@ elif [ ! -s $RDM_SSR_LOCATION ];then
         exit 1
 else
         url=`cat $RDM_SSR_LOCATION`
+
         # Verify the Xconf response in /tmp/.xconfssrdownloadurl
-        if [ "$DEVICE_TYPE" != "broadband" ]; then
-            if [ "$url" == "404" ]; then     
-                log_msg "Received 404 error from Xconf Server, checking RFC for RDM Default url"
-                if  [  ! -z "$DEFAULT_URL" ] && [ "$DEFAULT_URL" == " " ]; then
-                    log_msg "RFC Param Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl is not set"
-                    exit 1
-                else
-                    #Use default url from RFC param
-                    log_msg "Using RDM Default url $DEFAULT_URL to download from the Xconf Server"
-                    url=$DEFAULT_URL
-                fi
+        if [ "$url" == "404" ]; then     
+            log_msg "Received 404 error from Xconf Server, checking RFC for RDM Default url"
+            if  [  ! -z "$DEFAULT_URL" ] && [ "$DEFAULT_URL" == " " ]; then
+                log_msg "RFC Param Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl is not set"
+                exit 1
+            else
+                #Use default url from RFC param
+                log_msg "Using RDM Default url $DEFAULT_URL to download from the Xconf Server"
+                url=$DEFAULT_URL
             fi
-            # Enforce HTTPs download for Downloadable modules
-            log_msg "Replacing http with https in curl download request"
-            url=`echo $url | sed "s/http:/https:/g"` 
         fi
+        # Enforce HTTPs download for Downloadable modules
+        log_msg "Replacing http with https in curl download request"
+        url=`echo $url | sed "s/http:/https:/g"` 
+
         log_msg "RDM App Download URL Location is $url"
 fi
 
