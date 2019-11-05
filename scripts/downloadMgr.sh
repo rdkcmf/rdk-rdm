@@ -695,4 +695,10 @@ if [ "$APPLN_HOME_PATH" != "$APP_MOUNT_PATH/${DOWNLOAD_APP_MODULE}" ]; then
     rm -rf $DOWNLOAD_LOCATION/$downloadFile
 fi
 rm -rf $DOWNLOAD_LOCATION/*.ipk
+for script in ${APPLN_HOME_PATH}/etc/rdm/post-services/*.sh; do
+    if [ -f $script ]; then
+        [ -r $script ] && . $script &
+        echo "RDM Post script Execution $script"
+    fi
+done
 exit 0
