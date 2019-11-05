@@ -298,7 +298,9 @@ applicationDownload()
                 IF_OPTION="--interface $ARM_INTERFACE"
           fi
     fi
-
+    # Clean up to clear any previous partial files before downloading new package
+    rm -rf $DOWNLOAD_LOCATION/*
+    mkdir -p $DOWNLOAD_LOCATION
     CURL_CMD="curl $TLS $IF_OPTION -fgL $CURL_OPTION '%{http_code}\n' -o \"$DOWNLOAD_LOCATION/$downloadFile\" \"$downloadUrl\" --connect-timeout $CURL_TLS_TIMEOUT -m 600"
     echo $CURL_CMD
     sendDownloadRequest "${CURL_CMD}"
@@ -338,8 +340,8 @@ applicationExtraction()
     fi
     tar -xvf $DOWNLOAD_LOCATION/$downloadFile -C $DOWNLOAD_LOCATION/
     if [ $? -ne 0 ];then
-            log_msg "applicationExtraction: $downloadFile: tar Extraction Failed..!"
-            rm -rf $DOWNLOAD_LOCATION/$downloadFile
+            log_msg "applicationExtraction: $downloadFile: tar Extraction Failed..! Clearing $DOWNLOAD_LOCATION"
+            rm -rf $DOWNLOAD_LOCATION/*
             exit 3
     fi
 }
@@ -421,11 +423,17 @@ else
         log_msg "RDM App Download URL Location is $url"
 fi
 
+
+
 # Download the File Package  if not already downloaded
 if [ ! -f $DOWNLOAD_LOCATION/${DOWNLOAD_PKG_NAME} ]; then
     log_msg "Downloading The Package $url/${DOWNLOAD_PKG_NAME}"
     applicationDownload $url/${DOWNLOAD_PKG_NAME}
+else
+    log_msg "File package $DOWNLOAD_LOCATION/${DOWNLOAD_PKG_NAME} already available"
 fi
+
+
 
 if [ "$DOWNLOAD_APP_SIZE" ];then
      sizeVal=$DOWNLOAD_APP_SIZE
@@ -504,6 +512,8 @@ package_signatureFile=`ls $DOWNLOAD_LOCATION/*-pkg.sig| xargs basename`
 if [ $package_signatureFile ];then
        if [ -f $DOWNLOAD_LOCATION/$package_signatureFile ];then
             signVal=`cat $DOWNLOAD_LOCATION/$package_signatureFile`
+       else
+           log_msg "$DOWNLOAD_LOCATION/$package_signatureFile file not found"
        fi
 fi
 
@@ -511,6 +521,8 @@ package_keyFile=`ls $DOWNLOAD_LOCATION/*nam.txt| xargs basename`
 if [ $package_keyFile ];then
        if [ -f $DOWNLOAD_LOCATION/$package_keyFile ];then
             keyVal=`head -n1  $DOWNLOAD_LOCATION/$package_keyFile`
+       else
+           log_msg "$DOWNLOAD_LOCATION/$package_keyFile file not found"
        fi
 fi
 
@@ -610,10 +622,8 @@ fi
 
 if [ $? -ne 0 ];then
      log_msg "signature validation failed"
-     rm -rf $DOWNLOAD_LOCATION/$package_tarFile
-     rm -rf $DOWNLOAD_LOCATION/$package_signatureFile
-     rm -rf $DOWNLOAD_LOCATION/$package_keyFile
-     rm -rf $DOWNLOAD_LOCATION/*.ipk
+     # Clear all files as partial extraction may happen due to corrupted tar file 
+     rm -rf $DOWNLOAD_LOCATION/*
      if [ -d $APPLN_HOME_PATH ];then rm -rf $APPLN_HOME_PATH/* ; fi
      exit 3
 fi
