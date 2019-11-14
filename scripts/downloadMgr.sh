@@ -697,7 +697,7 @@ fi
 rm -rf $DOWNLOAD_LOCATION/*.ipk
 for script in ${APPLN_HOME_PATH}/etc/rdm/post-services/*.sh; do
     if [ -f $script ]; then
-        [ -r $script ] && . $script &
+        [ -r $script ] && sh $script &> /dev/null
         echo "RDM Post script Execution $script"
     fi
 done
