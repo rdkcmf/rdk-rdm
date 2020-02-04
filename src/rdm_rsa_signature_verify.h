@@ -16,18 +16,38 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
 */
+
+/**
+ * @defgroup RDM RDM(RDK Download Manager)
+ *
+ * - RDM is used for the management of downloadable modules.
+ * - RDK download manager enforces https connections for downloading modules (does not allow non-https connections).
+ *
+ * @defgroup RDM_API  RDM Public APIs
+ * @ingroup  RDM
+ *
+ * @defgroup RDM_TYPES RDM Data Types
+ * @ingroup  RDM
+ */
+
+/**
+ * @addtogroup RDM_TYPES
+ * @{
+ */
+
+
 /**
  * Obfuscated error return values.
  * Inital status returns to splunk will consist of the string:
  * "performance status bla bla: " followed by the hex ascii of one of
  * the following values.
  */
-#define retcode_param_error     0x5165C860              /* -1 */
-#define retcode_success         0x15245EAD              /* 0 */
-#define retcode_datafile_err    0x3560800C              /* 1 */
-#define retcode_sigfile_err     0x59A67B29              /* 2 */
-#define retcode_ssl_err                 0x716A311F              /* 3 */
-#define retcode_verify_fail             0x151358C6              /* 4 */
+#define retcode_param_error     0x5165C860              /*!< -1 */
+#define retcode_success         0x15245EAD              /*!< 0 */
+#define retcode_datafile_err    0x3560800C              /*!< 1 */
+#define retcode_sigfile_err     0x59A67B29              /*!< 2 */
+#define retcode_ssl_err                 0x716A311F              /*!< 3 */
+#define retcode_verify_fail             0x151358C6              /*!< 4 */
 #define retcode_keyfile_err             0x389CD6A0
 /**
  * debug stuff
@@ -38,39 +58,44 @@
 #define debug_print(fmt,args...) 
 #endif
 
-/**
- * Minimum bufferlength for reply strings
- */
+/**< Minimum bufferlength for reply strings */
 #define REPLY_MSG_LEN   40
 
-/**
- * buffer sizes
- */
+/**< buffer sizes */
 #define SHA256_DIGEST_LENGTH 32
 #define SHA256_ASCII_DIGEST_LENGTH (SHA256_DIGEST_LENGTH * 2)
 #define RSA2048_SIGNATURE_LEN 256
 #define RSA2048_ASCII_SIGNATURE_LEN ( RSA2048_SIGNATURE_LEN * 2 )
 
+/** @} */  //END OF GROUP RDM_TYPES
+
+/**
+ * @addtogroup RDM_API
+ * @{
+ */
+
  /**
-  * cpe_local_verify_file_signature
+  * @brief This function is used to verify the signature file locally.
   *
-  * Input:
-  *   char *data_file           - the file that has been signed
-  *   size_t file_len           - the length of the file.  PASS (size_t)-1 for "don't know, use eof"
-  *   char *sig_file            - contains the KMS ASCII hex signature ALL UPPER CASE as created by signing process
-  *   char *vkey_file           - PEM format public key exported from KMS
-  *   char *reply_msg           - buffer to receive message to send to logging system
-  *       int  *reply_msg_len   - pointer to int containing size of buffer.  Must be at least 65 bytes.
-  * Returns (see above for logical to actual :
-  *   -1                                        - reply_msg NULL or *reply_msg_len too small, no check done, required size in *reply_msg_len
-  *    0                                        - signature verifies, reply_msg buffer size ok, reply_msg has response
-  *    1                                - failed reading data_file, no sig check done, reply_msg has response
-  *        2                                    - failed reading sig_file, no sig check done, reply_msg has response
-  *    3                                        - openssl operational error, no sig check done, reply_msg has response
-  *    4                                        - signature does not match! reply_msg has response
+  *  @param[in] *data_file           - The file that has been signed
+  *  @param[in] file_len             - The length of the file.  PASS (size_t)-1 for "don't know, use eof"
+  *  @param[in] *sig_file            - Contains the KMS ASCII hex signature ALL UPPER CASE as created by signing process
+  *  @param[in] *vkey_file           - PEM format public key exported from KMS
+  *  @param[out] *reply_msg          - Buffer to receive message to send to logging system
+  *  @param[out] *reply_msg_len      - Pointer to int containing size of buffer.  Must be at least 65 bytes.
   *
-  *   -1 can also be returned for internal invalid lengths in buffer size variables. the logic is not fully implemented
+  * @return The status of the operation.
+  *
+  * @reval    -1                     - reply_msg NULL or *reply_msg_len too small, no check done, required size in *reply_msg_len.
+  * @retval   0                      - Signature verifies, reply_msg buffer size ok, reply_msg has response.
+  * @retval   1                      - Failed reading data_file, no sig check done, reply_msg has response.
+  * @retval   2                      - Failed reading sig_file, no sig check done, reply_msg has response.
+  * @retval   3                      - Openssl operational error, no sig check done, reply_msg has response.
+  * @retval   4                      - Signature does not match! reply_msg has response.
+  *
+  * @note  -1 can also be returned for internal invalid lengths in buffer size variables. the logic is not fully implemented
   *      to check for buffer length updates and retry.  Left as an exercise.
   */
  int cpe_local_verify_file_signature(const char *data_file, size_t file_len, const char *sig_file, const char *vkey_file, char *reply_msg, int *reply_msg_len);
 
+/** @} */  //END OF GROUP RDM_API
