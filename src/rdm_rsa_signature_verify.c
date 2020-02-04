@@ -34,7 +34,17 @@ static time_t timebuffer;
 #endif
 
 /**
- * dump_buffer() - to stdout and also a binary file
+ * @addtogroup RDM_API
+ * @{
+ */
+
+/**
+ * @brief This function outputs all the run's data to stdout and also to a binary file.
+ *
+ * @param[in] buffer          Data buffer
+ * @param[in] buffer_size     Length of buffer
+ * @param[in] name            Binary file name
+ *
  */
 void dump_buffer(void *buffer, int buffer_size, char *name)
 {
@@ -68,20 +78,18 @@ void dump_buffer(void *buffer, int buffer_size, char *name)
 }
 
  /**
-  * asciihex_to_bin
+  * @brief This function is used to convert asciihex data into binary format.
   *
-  * Input:
-  *  asciihex           - pointer to ascii hex string (not necessarily 0-term)
-  *      asciihex_length - length of ascii input string
-  *      bin                    - pointer to output buffer
-  *  bin_length         - pointer length of output buffer
+  * @param[in]  asciihex           - Pointer to ascii hex string (not necessarily 0-term)
+  * @param[in]  asciihex_length    - Length of ascii input string
+  * @param[out] bin                - Pointer to output buffer
+  * @param[out] bin_length         - Pointer length of output buffer
   *
-  * Returns:
-  *       -1                    - bad input args: null pointers or insufficient length, length returned if too small
-  *        0                    - all inputs OK, conversion performed
+  * @return Returns the status of the operation.
+  * @retval -1 Bad input args: null pointers or insufficient length, length returned if too small.
+  * @retval  0 All inputs OK, conversion performed.
   *
-  * ASCII.  '0' = 0x30.  'A' = 0x41.  That's that.
-  *     Case conversion/enforcement is based on same assumption.
+  * @note ASCII '0' = 0x30,'A' = 0x41. Case conversion/enforcement is based on same assumption.
   */
 static
 int asciihex_to_bin( const char *asciihex, size_t asciihex_length, unsigned char *bin, size_t *bin_length )
@@ -108,21 +116,21 @@ int asciihex_to_bin( const char *asciihex, size_t asciihex_length, unsigned char
 }
 
 /**
- * bin_to_asciihex
+ * @brief This function is used to convert binary data into asciihex format.
  *
- * Input:
- *  bin                 - pointer to binary input
- *  bin_length          - length of binary input (bytes)
- *  asciihex            - pointer to ascii hex destination
- *  asciihex_length - pointer to length of output buffer (must be at least 2x bin_length!)
- *  NOTE - THE SIGNATURE VALIDATION PACKAGES REQUIRES THE FILE IS HASHED AND THEN CONVERTED
- *  TO ASCII HEX USING "xxd -ps -c 2048 binary_hash_file" FOR SIGNING.  THE SIGNED MESSAGE IS  LOWER-CASE
- *  HEX ASCII.  SO WHEN THE HASH OVER THE DATA TO BE VERIFIED IS CONVERTED BACK TO BINARY FOR VERIFICATION,
- *  THE CONVERSION MUST BE TO LOWER-CASE HEX ASCII.
+ * @param[in]  bin                   Pointer to binary input
+ * @param[in]  bin_length            Length of binary input (bytes)
+ * @param[out] asciihex              Pointer to ascii hex destination
+ * @param[out] asciihex_length       Pointer to length of output buffer (must be at least 2x bin_length!)
+ * 
+ * @note THE SIGNATURE VALIDATION PACKAGES REQUIRES THE FILE IS HASHED AND THEN CONVERTED
+ * TO ASCII HEX USING "xxd -ps -c 2048 binary_hash_file" FOR SIGNING.  THE SIGNED MESSAGE IS  LOWER-CASE
+ * HEX ASCII.  SO WHEN THE HASH OVER THE DATA TO BE VERIFIED IS CONVERTED BACK TO BINARY FOR VERIFICATION,
+ * THE CONVERSION MUST BE TO LOWER-CASE HEX ASCII.
  *
- * Returns:
- *        -1                    - bad input args, length returned if too small
- *         0                    - all inputs OK, conversion returned
+ * @return Returns the status of the operation.
+ * @retval -1  Bad input args, length returned if too small.
+ * @retval  0  All inputs OK, conversion returned.
  */
 static
 int bin_to_asciihex( const unsigned char *bin, size_t bin_length, char *asciihex, size_t *asciihex_length )
@@ -151,7 +159,9 @@ int bin_to_asciihex( const unsigned char *bin, size_t bin_length, char *asciihex
 }
 
 /**
- * init_ssl_lib
+ *
+ * @brief This function initializes the openSSL crypto library and configurations
+ *
  */
 static
 void init_ssl_lib(void)
@@ -170,6 +180,17 @@ void init_ssl_lib(void)
         ssl_init++;
 }
 
+/**
+ *
+ * @brief This function decodes the signature file.
+ *
+ * @param[in] sig_file                      Pointer to signature file
+ * @param[in] sig_buffer                    Output signature buffer
+ * @param[in] sig_size                      Pointer to signature file size
+ *
+ * @ret returns  -1                         Bad parameters, including bad length.  *buffer_len contains required len.
+ * @ret returns   2                         Failed reading sig_file, no sig check done, reply_msg has response
+ */
 static
 int read_signature_file( const char *sig_file, unsigned char **sig_buffer, int *sig_size )
 {
@@ -218,22 +239,34 @@ int read_signature_file( const char *sig_file, unsigned char **sig_buffer, int *
         *sig_size = RSA2048_SIGNATURE_LEN;
         return 0;
 }
+/** @} */  //END OF GROUP RDM_API
 
 /**
- * rdm_openssl_file_hash_sha256
- *
- * In:
- *   data_file                  - the file to calculate a hash over
- *   hash_buffer                - pointer to memory to receive hash
- *       buffer_len                     - pointer to int length of callers buffer
- * Out:
- *   0                                  - hash is complete and in caller's buffer
- *  retcode_datafile_err - data file error
- *  retcode_param_error - bad parameters, including bad length.  *buffer_len contains required len.
- *  retcode_ssl_err             - openssl returned some sort of error
+ * @addtogroup RDM_TYPES
+ * @{
  */
-#define BUFSIZE 16384
 
+#define BUFSIZE 16384
+ /** @} */  //END OF GROUP RDM_TYPES
+
+
+/**
+ * @addtogroup RDM_API
+ * @{
+ */
+
+/**
+ * @brief This function is used to read and digest the data file.
+ *
+ * @param[in] data_file           The file to calculate a hash over
+ * @param[in] hash_buffer         Pointer to memory to receive hash
+ * @param[in] buffer_len          Pointer to int length of callers buffer
+ * 
+ * @ret returns 0                 Hash is complete and in caller's buffer.
+ * @ret returns 1                 Data file error.
+ * @ret returns -1                Bad parameters, including bad length.
+ * @ret returns 3                 Openssl returned some sort of error.
+ */
 static
 int rdm_openssl_file_hash_sha256( const char *data_file, size_t file_len, unsigned char *hash_buffer, int *buffer_len )
 {
@@ -319,17 +352,18 @@ error:
 }
 
 /**
- * rdm_openssl_file_hash_sha256_pkg_components
+ * @brief This function is used to initiating signature validation of individual package components.
  *
- * In:
- *   data_file                  - manifest file having path for all package components
- *   hash_buffer                - pointer to memory to receive hash
- *       buffer_len                     - pointer to int length of callers buffer
- * Out:
- *   0                                  - hash is complete and in caller's buffer
- *  retcode_datafile_err - data file error
- *  retcode_param_error - bad parameters, including bad length.  *buffer_len contains required len.
- *  retcode_ssl_err             - openssl returned some sort of error
+ * @param[in]  data_file          Manifest file having path for all package components
+ * @param[out] hash_buffer        Pointer to memory to receive hash
+ * @param[out] buffer_len         Pointer to int length of callers buffer
+ * 
+ * @return Reurns the status of operation.
+ *
+ * @retval 0                      Hash is complete and in caller's buffer.
+ * @retval 1                      Data file error.
+ * @retval -1                     Bad parameters, including bad length.
+ * @retval 3                      Openssl returned some sort of error.
  */
 static
 int rdm_openssl_file_hash_sha256_pkg_components( const char *data_file, size_t file_len, unsigned char *hash_buffer, int *buffer_len )
@@ -355,7 +389,7 @@ int rdm_openssl_file_hash_sha256_pkg_components( const char *data_file, size_t f
                 return retcode_param_error;
         }
         /**
-         * read and digest the manifest file
+         * Read and digest the manifest file
          */
         manifest_fh = fopen( data_file, "r" );
         if ( manifest_fh == NULL ) {
@@ -429,17 +463,20 @@ error:
         if ( manifest != NULL) free( manifest );
         return retval;
 }
+
 /**
- * openssl_verify_signature
+ * @brief This function performs signature verification process.
  *
- * In:
- *      hashval                 -       Hash generated over the data
- *  hashval_len         -       Length of hash though we know this all coded to SHA256
- *                                              (generalization left as an exercise)
+ * @param[in] hashval                 Hash generated over the data
+ * @param[in] hashval_len             Length of hash though we know this all coded to SHA256
+ * @param[in] sig_file                Contains the KMS ASCII hex signature ALL UPPER CASE as created by signing process
+ * @param[in] vkey_file               PEM format public key exported from KMS
+ * @param[in] reply_msg               Buffer to receive message to send to logging system
+ * @param[in] reply_msg_len           Pointer to int containing size of buffer.  Must be at least 65 bytes.
  *
- *  all other I/O per .h file
- *
+ * @ret returns -1                    Bad parameters, including bad length.  *buffer_len contains required len.
  */
+
 static
 int openssl_verify_signature(const unsigned char *hashval, int hashval_len, const char *sig_file, const char *vkey_file, char *reply_msg, int *reply_msg_len)
 {
@@ -543,11 +580,22 @@ error:
 
 
 
- /**
-  * rdm_openssl_rsa_file_signature_verify
-  *
-  * see .h
-  */
+/**
+ * @brief This function is used for a signature validation of the package.
+ *
+ * @param[in] data_file              Input data file.
+ * @param[in] file_len               Input data file length.
+ * @param[in] sig_file               Signature file.
+ * @param[in] vkey_file              Public key file.
+ * @param[in] reply_msg              Return Value.
+ * @param[in] reply_msg_len          Length of return value message.
+ *
+ * @return Returns the status of the operation.
+ * @retval -1                         On error.
+ * @retval 5                          When failed to open public key.
+ * @retval 0                          Success on signature verification.
+ * @retval 2                          Failure on signature verification.
+ */
  int rdm_openssl_rsa_file_signature_verify(const char *data_file, size_t file_len, const char *sig_file, const char *vkey_file, char *reply_msg, int *reply_msg_len)
  {
          int retval;
@@ -655,3 +703,5 @@ void usage(void)
         }
         return status;
 }
+
+/** @} */  //END OF GROUP RDM_API
