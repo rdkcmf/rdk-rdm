@@ -41,6 +41,8 @@ APPLN_HOME_PATH=/tmp/${DOWNLOAD_APP_MODULE}
 APP_MOUNT_PATH=/media/apps
 DIRECT_BLOCK_FILENAME="/tmp/.lastdirectfail_rdm"
 CB_BLOCK_FILENAME="/tmp/.lastcodebigfail_rdm"
+FORCE_DIRECT_ONCE="/tmp/.forcedirectonce_rdm"
+BB_TRIES=3
 
 #Read the Download Mgr Url fro RFC
 if [ "$DEVICE_TYPE" = "broadband" ]; then
@@ -155,6 +157,38 @@ IsCodeBigBlocked()
         fi
     fi
     return $codebigret
+}
+
+# Get the configuration of codebig settings
+get_Codebigconfig()
+{
+
+   if [ "$DEVICE_TYPE" = "broadband" ]; then
+       UseCodebig=0
+       conn_str="Direct"
+   
+       # If configparamgen not available, then only direct connection available and no fallback mechanism
+       if [ -f $CONFIGPARAMGEN ]; then
+          CodebigAvailable=1
+       fi
+       if [ "$CodebigAvailable" -eq "1" ]; then
+          CodeBigEnable=`dmcli eRT getv Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CodeBigFirst.Enable | grep true 2>/dev/null`
+       fi
+
+       if [ -f $FORCE_DIRECT_ONCE ];then
+           rm -f $FORCE_DIRECT_ONCE
+           log_msg "RDM Download: Last Codebig attempt failed, forcing direct once"
+       elif [ "$CodebigAvailable" -eq "1" ] && [ "x$CodeBigEnable" != "x" ];then 
+           UseCodebig=1
+           conn_str="Codebig" 
+       fi
+
+       if [ "$CodebigAvailable" -eq "1" ]; then
+           log_msg "RDM Download:: Using $conn_str connection as the Primary"
+       else
+           log_msg "RDM Download: Only $conn_str connection is available"
+       fi
+   fi
 }
 
 downloadApp_getVersionPrefix()
@@ -369,13 +403,18 @@ sendDownloadRequest()
             fi
             counter=`expr $counter + 1`
             log_msg "sendDownloadRequest: Retry: $counter"
-            if [ $counter -eq 3 ];then
-                log_msg "sendDownloadRequest: 3 retries failed, exiting from retry..!"
+            if [ "$counter" -ge "$BB_TRIES" ];then
+                log_msg "sendDownloadRequest: $BB_TRIES attempts failed, exiting from retry..!"
                 status=0
                 break
             else
  		# Needs to be less sleep, Since it causes holdoff expiry of MeshAgent.service
-                sleep 10
+                if [ "$UseCodebig" -eq "0" ] || [ "$counter" -eq "1" ]; then
+                    sleep_time=10
+                else
+                    sleep_time=30
+                fi                    
+                sleep $sleep_time
             fi
         else
             log_msg "sendDownloadRequest: Package download http_code : $http_code   ret : $TLSRet"
@@ -439,21 +478,22 @@ applicationDownload()
     mkdir -p $DOWNLOAD_LOCATION
 
     if [ "$DEVICE_TYPE" = "broadband" ]; then
+        get_Codebigconfig
+        if [ "$UseCodebig" -eq "1" ]; then
+            IsCodebigBlocked
+            if [ $? -eq 1 ];then
+                return
+            fi
+        fi
+
         generateDownloadUrl $downloadFile $downloadUrl $UseCodebig
         sendDownloadRequest "${CURL_CMD}"
         ret=$TLSRet
         http_code=$(awk -F\" '{print $1}' $HTTP_CODE)
         if [ $ret -ne 0 ] && [ "$http_code" == "000" ]; then
-            # Retry image download attempts via CodeBig
-            log_msg "Failed to download image from normal SSR CDN server"
-            log_msg "Retrying to communicate with SSR via CodeBig server"
-            UseCodebig=1
-            generateDownloadUrl $downloadFile $downloadUrl $UseCodebig
-            sendDownloadRequest "$CURL_CMD"
-            ret=$TLSRet
-            http_code=$(awk -F\" '{print $1}' $HTTP_CODE)
-            if [ $ret -ne 0 ] && [ "$http_code" == "000" ]; then
-                log_msg "Codebig download failed: ret=$ret, httpcode=$http_code"
+            if [ "$UseCodebig" -eq "1" ]; then
+                [ -f $CB_BLOCK_FILENAME ]; touch $CB_BLOCK_FILENAME
+                touch $FORCE_DIRECT_ONCE
             fi
         fi
     else
