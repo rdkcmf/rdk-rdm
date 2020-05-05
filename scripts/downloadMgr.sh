@@ -849,7 +849,6 @@ else
                 if [ "$finalPackage" == "${DOWNLOAD_APP_MODULE}_container.ipk" ];then
                    log_msg "LXC Container IPK detected..."
                    log_msg "LXC Container IPK post download processing..."
-                   HOME_PATH=$(echo "$APPLN_HOME_PATH" | sed 's/'"$DOWNLOAD_APP_MODULE"'$//')
                    DWL_DIRS=$(ls -l $APPLN_HOME_PATH | grep ^d | tr -s " " | cut -d " " -f 9 | grep -v 'rootfs\|conf\|launcher')
                    DWL_FILES=$(ls -l $APPLN_HOME_PATH | grep ^- | tr -s " " | cut -d " " -f 9 | grep -v $DOWNLOAD_APP_MODULE'_cpemanifest')
                    if [ -f $APPLN_HOME_PATH/conf/lxc.conf ];then
@@ -857,23 +856,6 @@ else
                        ROOTFS_PATH="$(echo $APPLN_HOME_PATH/rootfs | sed 's/\//\\\//g')"
                        sed -i 's/lxc.rootfs = .*/lxc.rootfs = '"$ROOTFS_PATH"'/' $APPLN_HOME_PATH/conf/lxc.conf
                        chown $DOWNLOAD_APP_MODULE:$DOWNLOAD_APP_MODULE $APPLN_HOME_PATH/
-                       DWL_HOME_PATH=$(echo "$HOME_PATH" | sed 's/^\///')
-                       mount_entry=$(cat $APPLN_HOME_PATH/conf/lxc.conf | grep -e "lxc.mount.entry = $HOME_PATH $DWL_HOME_PATH")
-                       if [ -z "$mount_entry" ]; then
-                          echo "lxc.mount.entry = $HOME_PATH $DWL_HOME_PATH none rw,bind,nodev,nosuid 0 0" >> $APPLN_HOME_PATH/conf/lxc.conf
-                       fi
-                       DWL_PATH=$(echo "$APPLN_HOME_PATH" | sed 's/\///')
-                       echo "lxc.mount.entry = $APPLN_HOME_PATH/ $DWL_PATH/ none rw,bind,nodev,nosuid 0 0" >> $APPLN_HOME_PATH/conf/lxc.conf
-                       for DIR in $DWL_DIRS
-                       do
-                           chown $DOWNLOAD_APP_MODULE:$DOWNLOAD_APP_MODULE $APPLN_HOME_PATH/$DIR -R
-                           echo "lxc.mount.entry = $APPLN_HOME_PATH/$DIR/ $DWL_PATH/$DIR/ none rw,bind,nodev,nosuid 0 0" >> $APPLN_HOME_PATH/conf/lxc.conf
-                       done
-                       for FILE in $DWL_FILES
-                       do
-                           chown $DOWNLOAD_APP_MODULE:$DOWNLOAD_APP_MODULE $APPLN_HOME_PATH/$FILE
-                           echo "lxc.mount.entry = $APPLN_HOME_PATH/$FILE $DWL_PATH/$FILE none rw,bind,nodev,nosuid 0 0" >> $APPLN_HOME_PATH/conf/lxc.conf
-                       done
                    fi
 
                    if [ -f $APPLN_HOME_PATH/launcher/${DOWNLOAD_APP_MODULE}.sh ];then
