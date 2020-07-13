@@ -480,7 +480,7 @@ applicationDownload()
     if [ "$DEVICE_TYPE" = "broadband" ]; then
         get_Codebigconfig
         if [ "$UseCodebig" -eq "1" ]; then
-            IsCodebigBlocked
+            IsCodeBigBlocked
             if [ $? -eq 1 ];then
                 return
             fi
