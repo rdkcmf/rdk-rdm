@@ -19,14 +19,6 @@
 
 
 
-
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <openssl/conf.h>
-#include <openssl/evp.h>
-#include <openssl/err.h>
-#include <openssl/pem.h>
 #include "rdm_rsa_signature_verify.h"
 
 #if defined(DEBUG_ENABLED)
@@ -158,12 +150,209 @@ int bin_to_asciihex( const unsigned char *bin, size_t bin_length, char *asciihex
         return 0;
 }
 
+static int prepare_sig_file(char *sig_file) {
+        char buffer[512] = {0};
+        int read = 0, skip = 0, len = 0;
+        char *mv_command = NULL;
+
+        FILE *file_in = fopen(sig_file, "r");
+        FILE *file_out = fopen(RDM_TMP_SIGFILE, "w+");
+
+        if (NULL == file_in || NULL == file_out)
+            return 1;
+
+        while((read = fread(buffer, sizeof(char), sizeof(buffer), file_in)) > 0)
+        {
+                if(0 == skip && read > 6) {
+                        //skip first 6 bytes
+                        fwrite(&buffer[6], sizeof(char), read-6, file_out);
+                        skip = 1;
+                } else {
+                        fwrite(buffer, sizeof(char), read, file_out);
+                }
+        }
+
+        fclose(file_out);
+        fclose(file_in);
+
+        len = strlen("/bin/mv") + strlen(RDM_TMP_SIGFILE) + strlen(sig_file) + 3;
+        mv_command = (char*) calloc(len, sizeof(char));
+        sprintf(mv_command, "/bin/mv %s %s", RDM_TMP_SIGFILE, sig_file);
+
+        system(mv_command);
+        free(mv_command);
+
+        return 0;
+}
+
+static int prepare_app_manifest(char *etc_manifest_file, char *cache_manifest_file, char* padding_file, char *prefix) {
+        char *line = NULL;
+        size_t len = 0;
+        char *new_line = NULL;
+
+        FILE *file_in = fopen(etc_manifest_file, "r");
+        FILE *file_out = fopen(cache_manifest_file, "w+");
+
+        if(file_in == NULL || file_out == NULL) {
+                return 1;
+        }
+
+        while(getline(&line, &len, file_in) != -1) {
+                if (NULL == new_line)
+                    new_line = (char *) malloc(sizeof(char) * (strlen(line) + strlen(prefix) + 1));
+                else
+                    new_line = (char *) realloc(new_line, sizeof(char) * (strlen(line) + strlen(prefix) + 1));
+                sprintf(new_line, "%s%s", prefix, line);
+                fwrite(new_line, sizeof(char), strlen(new_line), file_out);
+        }
+
+        //add path to padding file
+        fprintf(file_out, "%s\n", padding_file);
+
+        if (new_line)
+                free(new_line);
+        if (line)
+                free(line);
+
+        fclose(file_in);
+        fclose(file_out);
+
+        return 0;
+}
+
+static int prepare_kms_pubkey() {
+        int ret;
+        ret = system("/usr/bin/configparamgen jx /etc/rdm/vjyrepbsb.ijv /tmp/vstuvwx.file");
+        return WEXITSTATUS(ret);
+}
+
+/**
+ *
+ * @brief This function prepares the rdm files for signature verification
+ * Does the following -
+ * 1. Remove header added by KMS
+ * 2. Prepare cpe manifest file with correct path to extracted files
+ * 3. Decrypt kms public key
+ */
+static int prepare_rdm_files_for_sign_verification(char *cache_dir, char *app_name)
+{
+        char *app_cache_dir = NULL;
+        char *app_home_dir = NULL;
+        char *path_to_sig_file = NULL;
+        char *cache_app_manifest = NULL;
+        char *etc_app_manifest = NULL;
+        char *path_to_padding_file = NULL;
+        int  len, ret;
+
+        len = strlen(cache_dir) + strlen(RDM_DOWNLOADS_DIR) + strlen(app_name) + 2;
+        app_cache_dir = (char*) calloc(len, sizeof(char));
+        sprintf(app_cache_dir, "%s%s%s/", cache_dir, RDM_DOWNLOADS_DIR, app_name);
+
+        len = strlen(cache_dir) + strlen(app_name) + 3;
+        app_home_dir = (char*) calloc(len, sizeof(char));
+        sprintf(app_home_dir, "%s/%s/", cache_dir, app_name);
+
+        len = strlen(app_cache_dir) + strlen(app_name) + strlen(RDM_SIGFILE_SUFFIX) + 1;
+        path_to_sig_file = (char*) calloc(len, sizeof(char));
+        sprintf(path_to_sig_file, "%s%s%s", app_cache_dir, app_name, RDM_SIGFILE_SUFFIX);
+    
+        ret = prepare_sig_file(path_to_sig_file);
+
+        free(path_to_sig_file);
+
+        if (ret) {
+            free(app_cache_dir);
+            free(app_home_dir);
+            return ret;
+        }
+
+        len  = strlen(RDM_MANIFEST_DIR) + strlen(app_name) + strlen(RDM_MANIFEST_SUFFIX) + 1;
+        etc_app_manifest = (char*) calloc(len, sizeof(char));
+        sprintf(etc_app_manifest, "%s%s%s", RDM_MANIFEST_DIR, app_name, RDM_MANIFEST_SUFFIX);
+
+        len  = strlen(app_home_dir) + strlen(app_name) + strlen(RDM_MANIFEST_SUFFIX) + 1;
+        cache_app_manifest = (char*) calloc(len, sizeof(char));
+        sprintf(cache_app_manifest, "%s%s%s", app_home_dir, app_name, RDM_MANIFEST_SUFFIX);
+
+        len  = strlen(app_cache_dir) + strlen(RDM_KMS_PADDING_FILE) + 1;
+        path_to_padding_file = (char*) calloc(len, sizeof(char));
+        sprintf(path_to_padding_file, "%s%s", app_cache_dir, RDM_KMS_PADDING_FILE);
+
+        ret = prepare_app_manifest(etc_app_manifest, cache_app_manifest, path_to_padding_file, app_home_dir);
+
+        free(path_to_padding_file);
+        free(app_cache_dir);
+        free(app_home_dir);
+        free(cache_app_manifest);
+        free(etc_app_manifest);
+
+        if (ret) {
+            return ret;
+        }
+
+        ret = prepare_kms_pubkey();
+
+        return ret;
+}
+
+/**
+ *
+ * @brief This function prepares the rdm files for signature verification and invokes
+ * the kms openssl verification api
+ */
+int rdm_signature_verify(char *cache_dir, char *app_name, int prepare_files)
+{
+        int status = 1, len = 0;
+        int outputMsgLen=REPLY_MSG_LEN;
+        char outputMsg[REPLY_MSG_LEN] = "no response received";
+        char *dataFile=NULL, *sigFile=NULL;
+
+        if (NULL == cache_dir || NULL == app_name)
+            return status;
+
+        if (1 == prepare_files) {
+            if (0 != prepare_rdm_files_for_sign_verification(cache_dir, app_name)) {
+                printf("prepare_rdm_files_for_sign_verification failed\n");
+                return status;
+            }
+        } else {
+            if (0 != prepare_kms_pubkey()) {
+                printf("prepare_kms_pubkey failed\n");
+                return status;
+            }
+        }
+
+        /* Initialize the openSSL crypto library and configurations */
+        init_ssl_lib();
+
+        len  = strlen(cache_dir) + 2 * strlen(app_name) + strlen(RDM_MANIFEST_SUFFIX) + 3;
+        dataFile = (char*) calloc(len, sizeof(char));
+        sprintf(dataFile, "%s/%s/%s%s", cache_dir, app_name, app_name, RDM_MANIFEST_SUFFIX);
+
+        len = strlen(cache_dir) + strlen(RDM_DOWNLOADS_DIR) + 2 * strlen(app_name) + strlen(RDM_SIGFILE_SUFFIX) + 2;
+        sigFile = (char*) calloc(len, sizeof(char));
+        sprintf(sigFile, "%s%s%s/%s%s", cache_dir, RDM_DOWNLOADS_DIR, app_name, app_name, RDM_SIGFILE_SUFFIX);
+
+        status = rdm_openssl_rsa_file_signature_verify( dataFile, -1, sigFile, RDM_KMS_PUB_KEY, outputMsg, &outputMsgLen );
+        if ( status == retcode_success ) {
+            printf("RSA Signature Validation Success\n");
+            status = 0;
+        } else {
+            printf("RSA Signature Verification Failed\n");
+        }
+
+        free(dataFile);
+        free(sigFile);
+
+        unlink(RDM_KMS_PUB_KEY);
+        return status;
+}
+
 /**
  *
  * @brief This function initializes the openSSL crypto library and configurations
  *
  */
-static
 void init_ssl_lib(void)
 {
         static int      ssl_init=0;
@@ -178,6 +367,9 @@ void init_ssl_lib(void)
         /* Load config file, and other important initialisation */
         OPENSSL_config(NULL);
         ssl_init++;
+#if defined(DEBUG_ENABLED)
+        timebuffer = time(NULL);
+#endif
 }
 
 /**
@@ -636,72 +828,5 @@ error:
          return retval;
 
  }
-
-void usage(void)
-{
-        printf("Usage:\n");
-        printf(" f <filename>\n");
-        printf(" s <signature file> [PEM format]\n");
-        printf(" k <public key file>\n");
-        exit (1);
-}
-
- int main(int argc, char *argv[])
- {
-        int status = 0, opt = 0;
-        int outputMsgLen=REPLY_MSG_LEN;
-        char outputMsg[REPLY_MSG_LEN] = "no response received";
-        char *dataFile=NULL, *sigFile=NULL, *keyFile=NULL;
-
-        debug_print("Program name: %s\n", argv[0]);
-
-        /* Initialize the openSSL crypto library and configurations */
-        init_ssl_lib();
-#if defined(DEBUG_ENABLED)
-        timebuffer = time(NULL);
-#endif
-        while ((opt = getopt(argc, argv, "f:s:k:")) != -1) {
-            switch(opt) {
-  		case 'f':
-                        dataFile = optarg;
-    			printf("Input option value=%s\n", dataFile);
-    			break;
-    		case 's':
-    			sigFile = optarg;
-    			printf("Output option value=%s\n", sigFile);
-    			break;
-    		case 'k':
-    			keyFile = optarg;
-    			printf("Output option value=%s\n", keyFile);
-    			break;
-    		case '?':
-    			if (optopt == 'f') {
-    				printf("Missing mandatory Input File\n");
-  			} else if (optopt == 's') {
-     				printf("Missing mandatory Signature File\n");
-  			} else if (optopt == 'k') {
-     				printf("Missing mandatory Key File\n");
-  			} else {
-     				printf("Invalid option received\n");
-  			}
-                        usage();
-  			break;
- 	    }
- 	}
-        if ( dataFile == NULL || sigFile == NULL || keyFile == NULL ) {
-                usage();
-                exit(1);
-        }
-
-        status = rdm_openssl_rsa_file_signature_verify( dataFile, -1, sigFile,
-                                  keyFile, outputMsg, &outputMsgLen );
-        debug_print("rdm_openssl_rsa_file_signature_verify returns: %s\n",outputMsg);
-        if ( status == retcode_success ) {
-               printf("RSA Signature Validation Success\n");
-        } else {
-               printf("RSA Signature Verification Failed\n");
-        }
-        return status;
-}
 
 /** @} */  //END OF GROUP RDM_API

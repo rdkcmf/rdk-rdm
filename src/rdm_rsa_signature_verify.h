@@ -30,6 +30,23 @@
  * @ingroup  RDM
  */
 
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <openssl/conf.h>
+#include <openssl/evp.h>
+#include <openssl/err.h>
+#include <openssl/pem.h>
+
+#define RDM_DOWNLOADS_DIR       "/rdm/downloads/"
+#define RDM_MANIFEST_DIR        "/etc/rdm/"
+#define RDM_TMP_SIGFILE         "/tmp/sig.truncated"
+#define RDM_KMS_PUB_KEY         "/tmp/vstuvwx.file"
+#define RDM_KMS_PADDING_FILE    "pkg_padding"
+#define RDM_SIGFILE_SUFFIX      "-pkg.sig"
+#define RDM_MANIFEST_SUFFIX     "_cpemanifest"
+
 /**
  * @addtogroup RDM_TYPES
  * @{
@@ -73,6 +90,21 @@
  * @addtogroup RDM_API
  * @{
  */
+
+ /**
+  *
+  * @brief This function is used to verify the signature of rdm package
+  *
+  *  @param[in] *cache_dir          - Mount point where rdm packages are extracted (Eg - /media/apps, /tmp)
+  *  @param[in] *app_name           - Name of the app
+  *  @param[in] *prepare_files      - 1 - prepare files and then verify signature. 0 - just verify signature
+  *
+  *  @return The status of the operation.
+  *
+  *  @reval    0                     - Signature verification success
+  *  @retval   1                     - Signature verification failed
+  */
+ int rdm_signature_verify(char *cache_dir, char *app_name, int prepare_files);
 
  /**
   * @brief This function is used to verify the signature file locally.
