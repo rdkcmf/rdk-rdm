@@ -17,12 +17,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ##########################################################################
-LOG_FILE=""
+
+if [ -f /etc/include.properties ];then
+     . /etc/include.properties
+fi
+
+if [ -f /etc/device.properties ];then
+     . /etc/device.properties
+fi
+
+if [ "$LOG_PATH" ];then
+     LOG_FILE="$LOG_PATH/rdm_status.log"
+else
+     if [ -d /var/log ];then
+          if [ -f /var/log/rdm_status.log ];then
+               rm -rf /var/log/rdm_status.log
+          fi
+          LOG_FILE=/var/log/rdm_status.log
+     else
+          LOG_FILE=/dev/null
+     fi
+fi
 
 log_msg() {
   #get current dateandtime
   DateTime=`date "+%m%d%y-%H:%M:%S:%N"`
   STR=""
+  PID=$$
+
   #check if parameter non zero size
   if [ -n "$1" ];
   then
@@ -34,9 +56,9 @@ log_msg() {
     STR=$STR$IN
     done
   fi
+
   #print log message
-  # echo "[$DateTime] [pid=$$] $STR" >>$LOG_FILE
-  echo "[$DateTime] [pid=$$] $STR"
+  echo "[$DateTime] [pid=$PID] $STR" >>$LOG_FILE
 }
 
 get_core_value()
@@ -46,11 +68,11 @@ get_core_value()
          core=`cat /tmp/cpu_info`
     fi
     if [ ! "$core" ];then
-           processor=`cat /proc/cpuinfo | grep Atom| wc -l`
+           processor=`grep -ic "Atom" /proc/cpuinfo`
            if [ $processor ] && [ $processor -gt 0 ] ;then
                   core="ATOM"
            fi
-           processor=`cat /proc/cpuinfo | grep ARM| wc -l`
+           processor=`grep -c "ARM" /proc/cpuinfo`
            if [ $processor ] && [ $processor -gt 0 ] ;then
                   core="ARM"
            fi
@@ -58,4 +80,3 @@ get_core_value()
     fi
     echo $core
 }
-
