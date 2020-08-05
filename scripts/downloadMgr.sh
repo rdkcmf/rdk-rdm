@@ -40,7 +40,9 @@ CONFIGPARAMGEN=/usr/bin/configparamgen
 APPLN_HOME_PATH=/tmp/${DOWNLOAD_APP_MODULE}
 APP_MOUNT_PATH=/media/apps
 DIRECT_BLOCK_FILENAME="/tmp/.lastdirectfail_rdm"
+DIRECT_BLOCK_TIME=86400
 CB_BLOCK_FILENAME="/tmp/.lastcodebigfail_rdm"
+CB_BLOCK_TIME=1800
 FORCE_DIRECT_ONCE="/tmp/.forcedirectonce_rdm"
 BB_TRIES=3
 
