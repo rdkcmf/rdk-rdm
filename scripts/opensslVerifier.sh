@@ -118,12 +118,12 @@ fi
 
 log_msg "Validate the Package"
 if [ -f /usr/bin/opensslVerify ];then
-      if [ -e $CPEMANIFEST -a -e $SDCARD_DLPATH ]; then
+      if [ -e $CPEMANIFEST -a -n "$(echo $WORKDIR | awk '/^\/media\/apps\//')" ]; then
           CPEMANIFEST_PATH=$SDCARD_DLPATH/${APP_NAME}_cpemanifest
           cp $CPEMANIFEST $CPEMANIFEST_PATH
           sed -e "s/^/\/media\/apps\/${APP_NAME}\//" -i $CPEMANIFEST_PATH
           echo "$WORKDIR/pkg_padding" >> $CPEMANIFEST_PATH
-      elif [ -e $CPEMANIFEST -a -e $TMP_DLPATH ]; then
+      elif [ -e $CPEMANIFEST -a -n "$(echo $WORKDIR | awk '/^\/tmp\//')" ]; then
           CPEMANIFEST_PATH=$TMP_DLPATH/${APP_NAME}_cpemanifest
           cp $CPEMANIFEST $CPEMANIFEST_PATH
           sed -e "s/^/\/tmp\/$APP_NAME\//" -i $CPEMANIFEST_PATH
