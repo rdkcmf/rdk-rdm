@@ -271,7 +271,7 @@ fi
 
 log_msg "DOWNLOAD_APP_MODULE = $DOWNLOAD_APP_MODULE"
 log_msg "PKG_AUTHENTICATION = $PKG_AUTHENTICATION"
-log_msg "PKG_EXTN = $PKG_EXTN"
+log_msg "PKG_EXTN = $PACKAGE_EXTN"
 
 DOWNLOAD_APP_NAME=`/usr/bin/jsonquery -f /etc/rdm/rdm-manifest.json  --path=//packages/$DOWNLOAD_APP_MODULE/app_name`
 log_msg "Meta-data: package name: $DOWNLOAD_APP_NAME"
@@ -343,9 +343,9 @@ getCodebigUrl()
        fi
 
        SIGN_CMD="$CONFIGPARAMGEN $request_type \"$imageHTTPURL\""
-       eval $SIGN_CMD > /tmp/.signedRequest
-       cbSignedimageHTTPURL=`cat /tmp/.signedRequest`
-       rm -f /tmp/.signedRequest
+       eval $SIGN_CMD > /tmp/.signedRequest_${DOWNLOAD_APP_MODULE}
+       cbSignedimageHTTPURL=`cat /tmp/.signedRequest_${DOWNLOAD_APP_MODULE}`
+       rm -f /tmp/.signedRequest_${DOWNLOAD_APP_MODULE}
        
        # Work around for resolving SSR url encoded location issue
        # Correcting stb_cdl location in CB signed request
