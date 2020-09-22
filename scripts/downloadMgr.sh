@@ -639,6 +639,12 @@ applicationExtraction()
     fi
 }
 
+is_file_exists()
+{
+	if [ -e $1 ];then
+        	echo `ls $1 | xargs basename`
+	fi	
+}
 # setup the workspace and initial cleanup
 if [ ! -d $APPLN_HOME_PATH ];then
      mkdir -p $APPLN_HOME_PATH
@@ -775,8 +781,9 @@ if [ "$DOWNLOAD_APP_SIZE" ];then
 fi 
 
 # Extract the Package
-package_signatureFile=`ls $DOWNLOAD_LOCATION/*-pkg.sig| xargs basename`
-package_tarFile=`ls $DOWNLOAD_LOCATION/*-pkg.tar| xargs basename`
+package_signatureFile=$( is_file_exists $DOWNLOAD_LOCATION/*-pkg.sig )
+
+package_tarFile=$( is_file_exists $DOWNLOAD_LOCATION/*-pkg.tar )
 pkg_extracted=false
 # Keeping backup of signature and tarball on secondary storage to avoid top level package extraction on every reboot
 # As extraction could account for the SD card write cycle on every reboot.
@@ -787,7 +794,7 @@ else
     pkg_extracted=true
 fi
 
-package_tarFile=`ls $DOWNLOAD_LOCATION/*-pkg.tar| xargs basename`
+package_tarFile=$( is_file_exists $DOWNLOAD_LOCATION/*-pkg.tar )
 log_msg "Intermediate PKG File: $package_tarFile"
 if [ $package_tarFile ] && [ -f $DOWNLOAD_LOCATION/$package_tarFile ];then
       ls -l $DOWNLOAD_LOCATION/$package_tarFile
@@ -797,7 +804,7 @@ if [ $package_tarFile ] && [ -f $DOWNLOAD_LOCATION/$package_tarFile ];then
       fi
 fi
 
-package_signatureFile=`ls $DOWNLOAD_LOCATION/*-pkg.sig| xargs basename`
+package_signatureFile=$( is_file_exists $DOWNLOAD_LOCATION/*-pkg.sig )
 if [ $package_signatureFile ];then
        if [ -f $DOWNLOAD_LOCATION/$package_signatureFile ];then
             signVal=`cat $DOWNLOAD_LOCATION/$package_signatureFile`
@@ -806,7 +813,7 @@ if [ $package_signatureFile ];then
        fi
 fi
 
-package_keyFile=`ls $DOWNLOAD_LOCATION/*nam.txt| xargs basename`
+package_keyFile=$( is_file_exists $DOWNLOAD_LOCATION/*nam.txt )
 if [ $package_keyFile ];then
        if [ -f $DOWNLOAD_LOCATION/$package_keyFile ];then
             keyVal=`head -n1  $DOWNLOAD_LOCATION/$package_keyFile`
