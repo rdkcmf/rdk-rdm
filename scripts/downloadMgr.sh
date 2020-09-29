@@ -35,7 +35,7 @@ fi
 RDM_SSR_LOCATION=/tmp/.rdm_ssr_location
 RDM_DOWNLOAD_PATH=/tmp/rdm/
 PEER_COMM_DAT="/etc/dropbear/elxrretyt.swr"
-PEER_COMM_ID="/tmp/elxrretyt-$$.swr"
+PEER_COMM_ID="/tmp/elxrretyt-rdm.swr"
 CONFIGPARAMGEN=/usr/bin/configparamgen
 APPLN_HOME_PATH=/tmp/${DOWNLOAD_APP_MODULE}
 APP_MOUNT_PATH=/media/apps
@@ -672,8 +672,10 @@ else
            checkstatus=1
            counter=0
            log_msg "DOWNLOADING: /tmp/.xconfssrdownloadurl from ARM Side"
-           $CONFIGPARAMGEN jx $PEER_COMM_DAT $PEER_COMM_ID
-           while [ $checkstatus -eq 1 ]
+           if [ ! -f $PEER_COMM_ID ]; then
+               $CONFIGPARAMGEN jx $PEER_COMM_DAT $PEER_COMM_ID
+           fi
+           while [ $status -eq 1 ]
            do
                 scp -i $PEER_COMM_ID root@$ARM_SCP_IP_ADRESS:/tmp/.xconfssrdownloadurl $RDM_SSR_LOCATION
                 checkstatus=$?
@@ -691,7 +693,6 @@ else
                      fi
                 fi
           done
-          rm -f $PEER_COMM_ID
 fi
 
 if [ ! -f $RDM_SSR_LOCATION ];then
