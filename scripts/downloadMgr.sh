@@ -840,10 +840,12 @@ else
                      log_msg "IPK Extraction of $finalPackage Failed.."
                 else    
                      umask 544
-                     log_msg "Size of data [data.tar.gz]: `ls -lh data.tar.gz`"
-                     tar -xzvf data.tar.gz -C $APPLN_HOME_PATH/
+                     #default compression method in opkg is gz for daisy/morty and xz for dunfell
+                     data_file=`ls data.tar.* | tail -n1`
+                     log_msg "Size of data [$data_file]: `ls -lh $data_file`"
+                     tar -xvf $data_file -C $APPLN_HOME_PATH/
                      if [ $? -ne 0 ];then
-                          log_msg "tar Extraction Failed for data.tar.gz"
+                          log_msg "tar Extraction Failed for $data_file"
                      else
                           loop=2
                      fi
@@ -875,21 +877,17 @@ else
                    fi
                 fi
 
-                if [ -f $DOWNLOAD_LOCATION/debian-binary ];then
-                     rm -rf $DOWNLOAD_LOCATION/debian-binary
-                fi
-                if [ -f $DOWNLOAD_LOCATION/control.tar.gz ];then
-                     rm -rf $DOWNLOAD_LOCATION/control.tar.gz
-                fi
-                if [ -f $DOWNLOAD_LOCATION/data.tar.gz ];then
-                     rm -rf $DOWNLOAD_LOCATION/data.tar.gz
-                fi
+                rm -rf $DOWNLOAD_LOCATION/debian-binary
+                #default compression method in opkg is gz for daisy/morty and xz for dunfell
+                rm -rf $DOWNLOAD_LOCATION/control.tar.*         
+                rm -rf $DOWNLOAD_LOCATION/data.tar.*
+
              ;;
              tar )
                log_msg "Size of data [$finalPackage]: `ls -lh $finalPackage`"
                tar -xvf $finalPackage -C $APPLN_HOME_PATH/
                if [ $? -ne 0 ];then
-                     log_msg "tar Extraction Failed for data.tar.gz"
+                     log_msg "tar Extraction Failed for $finalPackage"
                else
                      loop=2
                fi
