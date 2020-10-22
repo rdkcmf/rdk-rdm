@@ -631,7 +631,7 @@ applicationExtraction()
            log_msg  "applicationExtraction: File Not Found for Extraction: $DOWNLOAD_LOCATION/$downloadFile"
            exit 2
     fi
-    tar -xvf $DOWNLOAD_LOCATION/$downloadFile -C $DOWNLOAD_LOCATION/
+    tar -xvf $DOWNLOAD_LOCATION/$downloadFile -C $DOWNLOAD_LOCATION/ >> $LOG_PATH/rdm_status.log 2>&1
     if [ $? -ne 0 ];then
             log_msg "applicationExtraction: $downloadFile: tar Extraction Failed..! Clearing $DOWNLOAD_LOCATION"
             rm -rf $DOWNLOAD_LOCATION/*
@@ -801,7 +801,7 @@ if [ $package_tarFile ] && [ -f $DOWNLOAD_LOCATION/$package_tarFile ];then
       ls -l $DOWNLOAD_LOCATION/$package_tarFile
       hashVal=`sha256sum $DOWNLOAD_LOCATION/$package_tarFile | cut -d " " -f1`
       if [ "x$pkg_extracted" != "xtrue" ]; then
-          tar -xvf $DOWNLOAD_LOCATION/$package_tarFile -C $DOWNLOAD_LOCATION/
+          tar -xvf $DOWNLOAD_LOCATION/$package_tarFile -C $DOWNLOAD_LOCATION/ >> $LOG_PATH/rdm_status.log 2>&1
       fi
 fi
 
@@ -851,7 +851,7 @@ else
                      #default compression method in opkg is gz for daisy/morty and xz for dunfell
                      data_file=`ls data.tar.* | tail -n1`
                      log_msg "Size of data [$data_file]: `ls -lh $data_file`"
-                     tar -xvf $data_file -C $APPLN_HOME_PATH/
+                     tar -xvf $data_file -C $APPLN_HOME_PATH/ >> $LOG_PATH/rdm_status.log 2>&1
                      if [ $? -ne 0 ];then
                           log_msg "tar Extraction Failed for $data_file"
                      else
@@ -893,7 +893,7 @@ else
              ;;
              tar )
                log_msg "Size of data [$finalPackage]: `ls -lh $finalPackage`"
-               tar -xvf $finalPackage -C $APPLN_HOME_PATH/
+               tar -xvf $finalPackage -C $APPLN_HOME_PATH/ >> $LOG_PATH/rdm_status.log 2>&1
                if [ $? -ne 0 ];then
                      log_msg "tar Extraction Failed for $finalPackage"
                else
