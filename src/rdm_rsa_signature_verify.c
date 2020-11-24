@@ -438,8 +438,38 @@ int read_signature_file( const char *sig_file, unsigned char **sig_buffer, int *
  * @{
  */
 
-#define BUFSIZE 16384
- /** @} */  //END OF GROUP RDM_TYPES
+static
+int manifest_file_size(const char *data_file, int *buffer_size)
+{
+      FILE *data_fh=NULL;
+      int retval=0;
+      data_fh = fopen( data_file, "r" );
+      if ( data_fh == NULL )
+      {
+      		debug_print("manifest_file_size(): datafile open error\n");
+                retval = retcode_datafile_err;
+          	goto error;
+      }
+      fseek(data_fh, 0, SEEK_END);
+      // calculating the size of the cpemanifest file
+      *buffer_size = ftell(data_fh) + 1;
+
+      if ( fseek( data_fh, 0, SEEK_END ) != 0 ) {
+                retval = retcode_datafile_err;
+                goto error;
+      }
+
+      if ( ferror( data_fh ) ) {
+                retval = retcode_datafile_err;
+                goto error;
+      }
+
+error:
+        if ( data_fh != NULL ) fclose( data_fh );
+        return retval;
+}
+
+/** @} */  //END OF GROUP RDM_TYPES
 
 
 /**
@@ -462,21 +492,26 @@ int read_signature_file( const char *sig_file, unsigned char **sig_buffer, int *
 static
 int rdm_openssl_file_hash_sha256( const char *data_file, size_t file_len, unsigned char *hash_buffer, int *buffer_len )
 {
+        int BUFSIZE;
+        if ( manifest_file_size(data_file, &BUFSIZE) != 0 )
+              return retcode_datafile_err;
         EVP_MD_CTX *mdctx=NULL;
         FILE *data_fh=NULL;
-        unsigned char buffer[BUFSIZE];
+        unsigned char* buffer= (unsigned char*)calloc(sizeof(unsigned char), BUFSIZE );
         int retval;
 
         debug_print("rdm_openssl_file_hash_sha256() Entry\n");
 
         if ( data_file == NULL || hash_buffer == NULL || buffer_len == NULL ) {
                 debug_print("rdm_openssl_file_hash_sha256(): Invalid param error\n");
-                return retcode_param_error;
+                retval=retcode_param_error;
+                goto error;
         }
         if ( *buffer_len < SHA256_DIGEST_LENGTH ) {
                 *buffer_len = SHA256_DIGEST_LENGTH;
                 debug_print("rdm_openssl_file_hash_sha256(): Wrong param error\n");
-                return retcode_param_error;
+                retval=retcode_param_error;
+                goto error;
         }
         /**
          * read and digest the data file
@@ -484,7 +519,8 @@ int rdm_openssl_file_hash_sha256( const char *data_file, size_t file_len, unsign
         data_fh = fopen( data_file, "r" );
         if ( data_fh == NULL ) {
                 debug_print("rdm_openssl_file_hash_sha256(): datafile open error\n");
-                return retcode_datafile_err;
+                retval=retcode_datafile_err;
+                goto error;
         }
 
         /* init ret code to ssl error */
@@ -511,7 +547,7 @@ int rdm_openssl_file_hash_sha256( const char *data_file, size_t file_len, unsign
                 }
         }
         size_t bytesread=0;
-
+        
         do {
                 size_t bytes_to_read = ( file_len < sizeof(buffer) ? file_len : sizeof(buffer) );
                 bytesread = fread(buffer, 1, bytes_to_read, data_fh );
@@ -522,6 +558,7 @@ int rdm_openssl_file_hash_sha256( const char *data_file, size_t file_len, unsign
                 }
                 file_len -= bytes_to_read;
         } while ( file_len > 0 );
+        
         if ( ferror( data_fh ) ) {
                 retval = retcode_datafile_err;
                 goto error;
@@ -540,6 +577,7 @@ error:
 
         if ( data_fh != NULL ) fclose( data_fh );
         if ( mdctx != NULL ) EVP_MD_CTX_destroy( mdctx );
+        if ( buffer != NULL ) free( buffer );
         return retval;
 }
 
@@ -560,10 +598,13 @@ error:
 static
 int rdm_openssl_file_hash_sha256_pkg_components( const char *data_file, size_t file_len, unsigned char *hash_buffer, int *buffer_len )
 {
+        int BUFSIZE;
+        if ( manifest_file_size(data_file, &BUFSIZE) != 0 )
+              return retcode_datafile_err;
         EVP_MD_CTX *mdctx=NULL;
         FILE *manifest_fh=NULL;
         FILE *data_fh=NULL;
-        unsigned char buffer[BUFSIZE];
+        unsigned char* buffer= (unsigned char*)calloc(sizeof(unsigned char), BUFSIZE );
         char *manifest=NULL;
         char *path_buff=NULL;
         int retval;
@@ -573,12 +614,14 @@ int rdm_openssl_file_hash_sha256_pkg_components( const char *data_file, size_t f
 
         if ( data_file == NULL || hash_buffer == NULL || buffer_len == NULL ) {
                 debug_print("rdm_openssl_file_hash_sha256_pkg_components(): Invalid param error\n");
-                return retcode_param_error;
+                retval=retcode_param_error;
+                goto error;
         }
         if ( *buffer_len < SHA256_DIGEST_LENGTH ) {
                 *buffer_len = SHA256_DIGEST_LENGTH;
                 debug_print("rdm_openssl_file_hash_sha256_pkg_components(): Wrong param error\n");
-                return retcode_param_error;
+                retval=retcode_param_error;
+                goto error;
         }
         /**
          * Read and digest the manifest file
@@ -586,7 +629,8 @@ int rdm_openssl_file_hash_sha256_pkg_components( const char *data_file, size_t f
         manifest_fh = fopen( data_file, "r" );
         if ( manifest_fh == NULL ) {
                 debug_print("rdm_openssl_file_hash_sha256_pkg_components(): manifest file open error\n");
-                return retcode_datafile_err;
+                retval=retcode_datafile_err;
+                goto error;
         }
 
         /* init ret code to ssl error */
@@ -603,7 +647,7 @@ int rdm_openssl_file_hash_sha256_pkg_components( const char *data_file, size_t f
         }
 
         retval = retcode_datafile_err;
-        manifest = malloc(BUFSIZE);
+        manifest = calloc(sizeof(char), BUFSIZE);
         if ( NULL == manifest ) {
             debug_print("rdm_openssl_file_hash_sha256_pkg_components(): memory allocation failed\n");
             goto error;
@@ -638,7 +682,7 @@ int rdm_openssl_file_hash_sha256_pkg_components( const char *data_file, size_t f
             if ( data_fh != NULL ) fclose( data_fh );
             data_fh=NULL;
         }
-
+        
         int hashval_len;
         if( 1 != EVP_DigestFinal_ex(mdctx, hash_buffer, &hashval_len) ) {
                 goto error;
@@ -653,6 +697,7 @@ error:
         if ( data_fh != NULL ) fclose( data_fh );
         if ( mdctx != NULL ) EVP_MD_CTX_destroy( mdctx );
         if ( manifest != NULL) free( manifest );
+        if ( buffer != NULL ) free( buffer );
         return retval;
 }
 
