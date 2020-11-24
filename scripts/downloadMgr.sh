@@ -675,7 +675,7 @@ else
            if [ ! -f $PEER_COMM_ID ]; then
                $CONFIGPARAMGEN jx $PEER_COMM_DAT $PEER_COMM_ID
            fi
-           while [ $status -eq 1 ]
+           while [ $checkstatus -eq 1 ]
            do
                 scp -i $PEER_COMM_ID root@$ARM_SCP_IP_ADRESS:/tmp/.xconfssrdownloadurl $RDM_SSR_LOCATION
                 checkstatus=$?
