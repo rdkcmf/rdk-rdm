@@ -76,7 +76,7 @@ cleanup()
 if [ ! "$1" ];then
      log_msg "Application Name is Empty, Execute Once Again `basename $0` "
      usage
-     exit 0
+     exit 1
 else
      DOWNLOAD_APP_MODULE="$1"
 fi
@@ -102,7 +102,7 @@ if [ -f $DOWNLOAD_MGR_PIDFILE ];then
    if [ -d /proc/$pid ];then
       log_msg "Another instance of this app $0 is already running..!"
       log_msg "Exiting without starting the $0..!"
-      exit 0
+      exit 1
    fi
 else
    echo $$ > $DOWNLOAD_MGR_PIDFILE
@@ -147,6 +147,11 @@ IsDirectBlocked()
 IsCodeBigBlocked()
 {
     codebigret=0
+    
+    if [ "$DEVICE_TYPE" = "broadband" ]; then
+    	return $codebigret
+    fi
+    
     if [ -f $CB_BLOCK_FILENAME ]; then
         modtime=$(($(date +%s) - $(date +%s -r $CB_BLOCK_FILENAME)))
         cbremtime=$((($CB_BLOCK_TIME/60) - ($modtime/60)))
@@ -484,7 +489,8 @@ applicationDownload()
         if [ "$UseCodebig" -eq "1" ]; then
             IsCodeBigBlocked
             if [ $? -eq 1 ];then
-                return
+                log_msg "applicationDownload: No App download attempts since Codebig is blocked"
+                exit 4
             fi
         fi
 
@@ -494,7 +500,9 @@ applicationDownload()
         http_code=$(awk -F\" '{print $1}' $HTTP_CODE)
         if [ $ret -ne 0 ] && [ "$http_code" == "000" ]; then
             if [ "$UseCodebig" -eq "1" ]; then
-                [ -f $CB_BLOCK_FILENAME ]; touch $CB_BLOCK_FILENAME
+                if [ ! -f $CB_BLOCK_FILENAME ]; then
+                        touch $CB_BLOCK_FILENAME
+                fi
                 touch $FORCE_DIRECT_ONCE
             fi
         fi
