@@ -22,6 +22,9 @@ if [ -f /etc/rdm/downloadUtils.sh ];then
 else
     echo "[/etc/rdm/downloadUtils.sh], File Not Found"
 fi
+if [ -f /lib/rdk/t2Shared_api.sh ]; then
+    source /lib/rdk/t2Shared_api.sh
+fi
 
 WORKDIR=$1
 PACKAGE_FILE=$2
@@ -100,6 +103,7 @@ elif [ "$SIGNATURE_TYPE" = "openssl" ]; then
         openssl dgst -sha256 -verify /tmp/pubkey.pem -signature ${SIGNATURE_FILE} ${PACKAGE_FILE}
         if [ $? -ne 0 ]; then
             log_msg "Signature validation Failed"
+            t2CountNotify "RDM_ERR_rsa_signature_failed"
             rm -rf $RSA_KEY_FILE $VER_CERT
             exit 2
         else

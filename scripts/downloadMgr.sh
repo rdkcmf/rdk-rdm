@@ -31,7 +31,9 @@ if [ -f /etc/rdm/downloadUtils.sh ];then
 else
     echo "File Not Found, /etc/rdm/downloadUtils.sh"
 fi
-
+if [ -f /lib/rdk/t2Shared_api.sh ]; then
+    source /lib/rdk/t2Shared_api.sh
+fi
 RDM_SSR_LOCATION=/tmp/.rdm_ssr_location
 RDM_DOWNLOAD_PATH=/tmp/rdm/
 PEER_COMM_DAT="/etc/dropbear/elxrretyt.swr"
@@ -412,6 +414,7 @@ sendDownloadRequest()
             log_msg "sendDownloadRequest: Retry: $counter"
             if [ "$counter" -ge "$BB_TRIES" ];then
                 log_msg "sendDownloadRequest: $BB_TRIES attempts failed, exiting from retry..!"
+                t2CountNotify "RDM_ERR_rdm_retry_fail"
                 status=0
                 break
             else
@@ -637,6 +640,7 @@ applicationExtraction()
     if [ ! -f $DOWNLOAD_LOCATION/$downloadFile ];then
            downloadStatus=1
            log_msg  "applicationExtraction: File Not Found for Extraction: $DOWNLOAD_LOCATION/$downloadFile"
+           t2CountNotify "NF_ERR_rdm_filenotfound_extraction"
            exit 2
     fi
     tar -xvf $DOWNLOAD_LOCATION/$downloadFile -C $DOWNLOAD_LOCATION/ >> $LOG_PATH/rdm_status.log 2>&1
@@ -922,6 +926,7 @@ else
         done <$DOWNLOAD_LOCATION/packages.list
     else
         log_msg "Not Found the Packages List file"
+        t2CountNotify "RDM_ERR_rdm_package_notfound"
         rm -rf $DOWNLOAD_LOCATION/*
         exit 3
     fi
@@ -956,6 +961,7 @@ fi
 
 if [ $? -ne 0 ];then
      log_msg "signature validation failed"
+     t2CountNotify "RDM_ERR_rsa_signature_failed"
      # Clear all files as partial extraction may happen due to corrupted tar file 
      rm -rf $DOWNLOAD_LOCATION/*
      if [ -d $APPLN_HOME_PATH ];then rm -rf $APPLN_HOME_PATH/* ; fi

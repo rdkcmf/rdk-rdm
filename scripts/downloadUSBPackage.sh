@@ -26,6 +26,9 @@ fi
 if [ -f /etc/device.properties ];then
      . /etc/device.properties
 fi
+if [ -f /lib/rdk/t2Shared_api.sh ]; then
+    source /lib/rdk/t2Shared_api.sh
+fi
 
 if [ "$LOG_PATH" ];then
      LOG_FILE="$LOG_PATH/rdm_status.log"
@@ -134,6 +137,7 @@ do
     sh /etc/rdm/opensslVerifier.sh ${packageLocation} ${package_tarFile} ${package_signatureFile} "openssl" ${package_cert}
     if [ $? -ne 0 ] ; then
        log_msg "Signature validation failed"
+       t2CountNotify "RDM_ERR_rsa_signature_failed"
        rm -rf $packageLocation/$package_tarFile
        rm -rf $packageLocation/$package_signatureFile
        rm -rf $packageLocation//$package_cert

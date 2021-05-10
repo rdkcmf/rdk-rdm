@@ -31,7 +31,9 @@ if [ -f /etc/rdm/downloadUtils.sh ];then
 else
     echo "File Not Found, /etc/rdm/downloadUtils.sh"
 fi
-
+if [ -f /lib/rdk/t2Shared_api.sh ]; then
+    source /lib/rdk/t2Shared_api.sh
+fi
 RDM_SSR_LOCATION=/tmp/.rdm_ssr_location
 RDM_DOWNLOAD_PATH=/tmp/rdm/
 CONFIGPARAMGEN=/usr/bin/configparamgen
@@ -279,6 +281,7 @@ do
             log_msg "Size Info After Download: `ls -lh $DOWNLOAD_LOCATION/$downloadFile`"
         fi
         log_msg "RSA Signature Validation Success for ${DOWNLOAD_APP_MODULE} package"
+        t2CountNotify "RDM_INFO_rsa_valid_signature"
         rm $PACKAGE_SIGN_VERIFY_SUCCESS
         # cleanup tmp dirs created by opkg
         rm -rf /tmp/{opkg,var/lib/opkg}
@@ -347,6 +350,9 @@ if [ -f $DOWNLOAD_LOCATION/packages.list ];then
 
         if [ -f ./${finalPackage} ];then
             log_msg "Removing $finalPackage"
+            if [ $finalPackage == "netflix_container.ipk" ]; then
+                t2CountNotify "NF_INFO_rdm_success"
+            fi
             rm -rf ./$finalPackage
         fi
     done <$DOWNLOAD_LOCATION/packages.list
