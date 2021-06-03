@@ -707,31 +707,33 @@ else
           done
 fi
 
-if [ ! -f $RDM_SSR_LOCATION ];then
-        log_msg "$RDM_SSR_LOCATION SSR URL Location Input File is not there"
-        exit 1
-elif [ ! -s $RDM_SSR_LOCATION ];then
-        log_msg "Download URL is empty Inside $RDM_SSR_LOCATION"
-        exit 1
+if [ -f $RDM_SSR_LOCATION ]; then
+    get_url=`sed -n '/^http/p' $RDM_SSR_LOCATION`
+    if [ -z $get_url ]; then
+           log_msg "Download URL is not available in $RDM_SSR_LOCATION"
+           if [ -n "$DEFAULT_URL" ]; then
+               log_msg "Using RDM Default url $DEFAULT_URL to download from the Xconf Server"
+               url=$DEFAULT_URL
+           else
+               log_msg "RFC Param Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl is not set. Exiting..."
+               exit 1
+           fi
+    else
+         log_msg "Download URL available in $RDM_SSR_LOCATION is $(cat $RDM_SSR_LOCATION)"
+         url=`cat $RDM_SSR_LOCATION`
+    fi
+elif [ -n "$DEFAULT_URL" ]; then
+         log_msg "Using RDM Default url $DEFAULT_URL to download from the Xconf Server"
+         url=$DEFAULT_URL
 else
-        url=`cat $RDM_SSR_LOCATION`
+         log_msg "RDM download url is not available in both $RDM_SSR_LOCATION and RFC parameter. Exiting..."
+         exit 1
+fi
 
-        # Verify the Xconf response in /tmp/.xconfssrdownloadurl
-        if [ "$url" == "404" ]; then     
-            log_msg "Received 404 error from Xconf Server, checking RFC for RDM Default url"
-            if  [  ! -z "$DEFAULT_URL" ] && [ "$DEFAULT_URL" == " " ]; then
-                log_msg "RFC Param Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl is not set"
-                exit 1
-            else
-                #Use default url from RFC param
-                log_msg "Using RDM Default url $DEFAULT_URL to download from the Xconf Server"
-                url=$DEFAULT_URL
-            fi
-        fi
-        # Enforce HTTPs download for Downloadable modules
+# Enforce HTTPs download for Downloadable modules
+if [ -n "$url" ]; then
         log_msg "Replacing http with https in curl download request"
-        url=`echo $url | sed "s/http:/https:/g"` 
-
+        url=`echo $url | sed "s/http:/https:/g"`
         log_msg "RDM App Download URL Location is $url"
 fi
 
