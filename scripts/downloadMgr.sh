@@ -970,6 +970,8 @@ if [ $? -ne 0 ];then
      exit 3
 fi
 
+log_msg "RDM package download success: $DOWNLOAD_PKG_NAME"
+
 log_msg "$DOWNLOAD_LOCATION// CleanUp"
 if [ "$APPLN_HOME_PATH" != "$APP_MOUNT_PATH/${DOWNLOAD_APP_MODULE}" ]; then
     rm -rf $DOWNLOAD_LOCATION/$downloadFile
