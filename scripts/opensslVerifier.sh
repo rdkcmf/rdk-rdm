@@ -17,11 +17,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 ##########################################################################
-if [ -f /etc/rdm/downloadUtils.sh ];then
-    . /etc/rdm/downloadUtils.sh
+if [ -f /etc/rdm/loggerUtils.sh ];then
+    . /etc/rdm/loggerUtils.sh
 else
-    echo "[/etc/rdm/downloadUtils.sh], File Not Found"
+    echo "[/etc/rdm/loggerUtils.sh], File Not Found"
 fi
+
 if [ -f /lib/rdk/t2Shared_api.sh ]; then
     source /lib/rdk/t2Shared_api.sh
 fi
@@ -30,10 +31,21 @@ WORKDIR=$1
 PACKAGE_FILE=$2
 SIGNATURE_FILE=$3
 SIGNATURE_TYPE=$4
+PROCESS_CUSTOM_BUNDLE=$5
 
-CPEMANIFEST_PATH=""
-APP_NAME="$(echo $PACKAGE_FILE | sed 's/-pkg.tar//g')"
-CPEMANIFEST=/etc/rdm/${APP_NAME}_cpemanifest
+if [ "$PROCESS_CUSTOM_BUNDLE" = "1" ]; then
+      log_msg "Verifying signature of RDM Bundle"
+      APP_NAME=$(basename $PACKAGE_FILE | awk -F"_" '{print $1}')
+      CPEMANIFEST="${WORKDIR}/pkg_cpemanifest"
+      CPEMANIFEST_PATH="$CPEMANIFEST"
+      CPEMETADATA="package.json"
+      CPEMETADATA_PATH="${WORKDIR}/package.json"
+else
+      APP_NAME="$(echo $PACKAGE_FILE | sed 's/-pkg.tar//g')"
+      CPEMANIFEST=/etc/rdm/${APP_NAME}_cpemanifest
+      CPEMANIFEST_PATH=""
+fi
+
 SDCARD_DLPATH=/media/apps/$APP_NAME
 TMP_DLPATH=/tmp/$APP_NAME
 
@@ -68,9 +80,9 @@ validateCert()
         exit 1
     fi
     VER_CERT=${WORKDIR}/${CERT}
-	# Validate Certificate
-    #openssl verify -CAfile ${RDK_CA_PATH}/${RDK_CA_NAME} ${VER_CERT}	
-    openssl verify -CAfile ${RDK_CA_PATH} ${VER_CERT}	
+        # Validate Certificate
+    #openssl verify -CAfile ${RDK_CA_PATH}/${RDK_CA_NAME} ${VER_CERT}
+    openssl verify -CAfile ${RDK_CA_PATH} ${VER_CERT}
     if [ $? -ne 0 ]; then
          log_msg "Certificate $CERT Validation Failed"
          exit 1
@@ -90,7 +102,7 @@ if [ "$SIGNATURE_TYPE" = "kms" ];then
         # Decrypt the Key for Codebig
         $CONFIGPARAMGEN jx $KMS_RSA_PUBLIC_KEY_FILE $KMS_INTERMEDIATE_RSA_KEY_FILE
 elif [ "$SIGNATURE_TYPE" = "openssl" ]; then
-        # verification certificate 
+        # verification certificate
         VER_CERT=${WORKDIR}/${CERT}
         RSA_KEY_FILE="${WORKDIR}/PUB.KEY"
         validateCert;
@@ -123,17 +135,34 @@ fi
 log_msg "Validate the Package"
 if [ -f /usr/bin/opensslVerify ];then
       if [ -e $CPEMANIFEST -a -n "$(echo $WORKDIR | awk '/^\/media\/apps\//')" ]; then
-          CPEMANIFEST_PATH=$SDCARD_DLPATH/${APP_NAME}_cpemanifest
-          cp $CPEMANIFEST $CPEMANIFEST_PATH
-          sed -e "s/^/\/media\/apps\/${APP_NAME}\//" -i $CPEMANIFEST_PATH
+          if [ "$PROCESS_CUSTOM_BUNDLE" = "1" ]; then
+              sed -e "s/^/\/media\/apps\/${APP_NAME}\//" -i $CPEMANIFEST_PATH
+              sed -e "/${CPEMETADATA}/c\\${CPEMETADATA_PATH}" -i $CPEMANIFEST_PATH
+          else
+              CPEMANIFEST_PATH=$SDCARD_DLPATH/${APP_NAME}_cpemanifest
+              cp $CPEMANIFEST $CPEMANIFEST_PATH
+              sed -e "s/^/\/media\/apps\/${APP_NAME}\//" -i $CPEMANIFEST_PATH
+          fi
           echo "$WORKDIR/pkg_padding" >> $CPEMANIFEST_PATH
       elif [ -e $CPEMANIFEST -a -n "$(echo $WORKDIR | awk '/^\/tmp\//')" ]; then
-          CPEMANIFEST_PATH=$TMP_DLPATH/${APP_NAME}_cpemanifest
-          cp $CPEMANIFEST $CPEMANIFEST_PATH
-          sed -e "s/^/\/tmp\/$APP_NAME\//" -i $CPEMANIFEST_PATH
+          if [ "$PROCESS_CUSTOM_BUNDLE" = "1" ]; then
+              sed -e "s/^/\/tmp\/$APP_NAME\//" -i $CPEMANIFEST_PATH
+              sed -e "/${CPEMETADATA}/c\\${CPEMETADATA_PATH}" -i $CPEMANIFEST_PATH
+          else
+              CPEMANIFEST_PATH=$TMP_DLPATH/${APP_NAME}_cpemanifest
+              cp $CPEMANIFEST $CPEMANIFEST_PATH
+              sed -e "s/^/\/tmp\/$APP_NAME\//" -i $CPEMANIFEST_PATH
+          fi
           echo "$WORKDIR/pkg_padding" >> $CPEMANIFEST_PATH
       else
           CPEMANIFEST_PATH=""
+      fi
+
+      if [ "$PROCESS_CUSTOM_BUNDLE" = "1" -a ! -f "$WORKDIR/$SIGNATURE_FILE.truncated" ]; then
+          # Since KMS is adding 6 Bytes of Header, need to remove this before validation
+          # KMS Header Removal from the Signature
+          log_msg "Removing the KMS Prefix Header"
+          dd if="$WORKDIR/$SIGNATURE_FILE" of="$WORKDIR/$SIGNATURE_FILE.truncated" bs=6 skip=1 && cp "$WORKDIR/$SIGNATURE_FILE.truncated" "$WORKDIR/$SIGNATURE_FILE"
       fi
 
       if [ "x$CPEMANIFEST_PATH" != "x" ]; then

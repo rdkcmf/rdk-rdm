@@ -26,10 +26,10 @@ if [ -f /etc/include.properties ];then
     . /etc/include.properties
 fi
 
-if [ -f /etc/rdm/downloadUtils.sh ];then
-    . /etc/rdm/downloadUtils.sh
+if [ -f /etc/rdm/loggerUtils.sh ];then
+    . /etc/rdm/loggerUtils.sh
 else
-    echo "File Not Found, /etc/rdm/downloadUtils.sh"
+    echo "File Not Found, /etc/rdm/loggerUtils.sh"
 fi
 
 CONFIGPARAMGEN=/usr/bin/configparamgen

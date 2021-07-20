@@ -21,10 +21,10 @@ if [ -f /etc/device.properties ];then
     . /etc/device.properties
 fi
 
-if [ -f /etc/rdmdownloadUtils.sh ];then
-    . /etc/rdm/downloadUtils.sh
+if [ -f /etc/rdmloggerUtils.sh ];then
+    . /etc/rdm/loggerUtils.sh
 else
-    echo "[/etc/rdm/downloadUtils.sh], File Not Found"
+    echo "[/etc/rdm/loggerUtils.sh], File Not Found"
 fi
 
  

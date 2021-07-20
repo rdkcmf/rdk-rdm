@@ -658,7 +658,7 @@ int rdm_openssl_file_hash_sha256_pkg_components( const char *data_file, size_t f
         while ( path_buff != NULL )
         {
             data_fh = fopen( path_buff, "r" );
-            if(  strstr(path_buff, "tmp") || strstr(path_buff, "media") || strstr(path_buff, "padding") ) {
+            if(  strstr(path_buff, "tmp") || strstr(path_buff, "media") || strstr(path_buff, "padding") ||  strstr(path_buff, "json") ) {
                 if ( data_fh == NULL ) {
                     printf("rdm_openssl_file_hash_sha256_pkg_components: datafile open error\n");
                     goto error;
