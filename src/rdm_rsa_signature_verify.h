@@ -46,6 +46,7 @@
 #define RDM_KMS_PADDING_FILE    "pkg_padding"
 #define RDM_SIGFILE_SUFFIX      "-pkg.sig"
 #define RDM_MANIFEST_SUFFIX     "_cpemanifest"
+#define ENABLE_DEBUG_FLAG       "/tmp/debug_rdmopenssl"
 
 /**
  * @addtogroup RDM_TYPES
@@ -72,7 +73,7 @@
 #ifdef DEBUG_ENABLED
 #define debug_print(fmt,args...) printf(fmt,##args)
 #else
-#define debug_print(fmt,args...) 
+#define debug_print(fmt,args...) if(access(ENABLE_DEBUG_FLAG, F_OK) != -1) printf(fmt,##args);
 #endif
 
 /**< Minimum bufferlength for reply strings */
