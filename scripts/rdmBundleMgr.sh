@@ -116,7 +116,13 @@ installApp()
 
 			sh /etc/rdm/getRdmDwldPath.sh "$pkg_name" "$package_size"
 			if [ $? -eq 0 ]; then
+				if [ -d "${MOUNT_DWLD_DIR}${RDM_DWLD_DIR}/$pkg_name" ]; then
+					rm -rf "${MOUNT_DWLD_DIR}${RDM_DWLD_DIR}/$pkg_name"
+				fi
+				mv $APP_DWLD_DIR "${MOUNT_DWLD_DIR}${RDM_DWLD_DIR}/$pkg_name"
+				APP_DWLD_DIR="${MOUNT_DWLD_DIR}${RDM_DWLD_DIR}/$pkg_name"
 				APP_HOME_DIR="${MOUNT_DWLD_DIR}/$pkg_name"
+				cd $APP_DWLD_DIR
 			fi
 		else
 			log "Missing package size"
