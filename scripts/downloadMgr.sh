@@ -191,6 +191,7 @@ if [ -f /tmp/.xconfssrdownloadurl ];then
            cp /tmp/.xconfssrdownloadurl /tmp/.rdm_ssr_location
            cp /tmp/.rdm_ssr_location /nvram/.rdm_ssr_location
 else
+      if [ "$BOX_TYPE" = "XB3" ]; then
            checkstatus=1
            counter=0
            log_msg "DOWNLOADING: /tmp/.xconfssrdownloadurl from ARM Side"
@@ -215,6 +216,7 @@ else
                      fi
                 fi
           done
+     fi
 fi
 
 if [ -f $RDM_SSR_LOCATION ]; then
