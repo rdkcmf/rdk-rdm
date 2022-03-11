@@ -454,11 +454,7 @@ else
 fi
 
 # Signature Validation
-if [ "$PKG_AUTHENTICATION" = "kms" ];then
-     log_msg "KMS Validation on the Package"
-     #kmsVerification $keyVal $hashVal $signVal
-     sh /etc/rdm/kmsVerify.sh ${DOWNLOAD_LOCATION} $keyVal $hashVal $signVal
-elif [ "$PKG_AUTHENTICATION" = "openssl" ];then
+if [ "$PKG_AUTHENTICATION" = "openssl" ];then
      log_msg "openSSL Validation on the Package"
      if [ "x$pkg_extracted" != "xtrue" ]; then
         # Since KMS is adding 6 Bytes of Header, need to remove this before validation
@@ -470,7 +466,7 @@ elif [ "$PKG_AUTHENTICATION" = "openssl" ];then
      sh /etc/rdm/opensslVerifier.sh ${DOWNLOAD_LOCATION}/ $package_tarFile $package_signatureFile "kms"
 else
      log_msg "Application Download Not possible without Authentication"
-     log_msg "Supported Authentications: KMS Signature Validation and OpenSSL Verifications"
+     log_msg "Supported Authentications: OpenSSL Verification"
 fi
 
 if [ $? -ne 0 ];then
