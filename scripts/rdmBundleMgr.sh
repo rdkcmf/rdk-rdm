@@ -26,9 +26,6 @@ if [ -f /etc/rdm/rdmBundleUtils.sh ]; then
         source /etc/rdm/rdmBundleUtils.sh
 fi
 
-XCONF_BUNDLE_LIST="$1"
-FIRMWARE_LOCATION="$2"
-
 DIRECT_BLOCK_FILENAME="${DIRECT_BLOCK_FILENAME}_rdmbdl"
 CB_BLOCK_FILENAME="${CB_BLOCK_FILENAME}_rdmbdl"
 FORCE_DIRECT_ONCE="${FORCE_DIRECT_ONCE}_rdmbdl"
@@ -36,7 +33,27 @@ FORCE_DIRECT_ONCE="${FORCE_DIRECT_ONCE}_rdmbdl"
 TMP_DWLD_DIR="/tmp"
 MOUNT_DWLD_DIR="/media/apps"
 RDM_DWLD_DIR="/rdm/downloads"
+RDM_SSR_LOCATION="/tmp/.xconfssrdownloadurl"
 
+# RDM IARM status event
+IARM_BUS_RDMMGR_EVENTNAME_APP_INSTALLATION_STATUS="RDMAppStatusEvent"
+IARM_BUS_RDMMGR_EVENT_APP_INSTALLATION_STATUS=1
+
+# RDM IARM status enums
+RDM_PKG_INSTALL_COMPLETE=0
+RDM_PKG_INSTALL_ERROR=1
+RDM_PKG_DOWNLOAD_COMPLETE=2
+RDM_PKG_DOWNLOAD_ERROR=3
+RDM_PKG_EXTRACT_COMPLETE=4
+RDM_PKG_EXTRACT_ERROR=5
+RDM_PKG_VALIDATE_COMPLETE=6
+RDM_PKG_VALIDATE_ERROR=7
+RDM_PKG_POSTINSTALL_COMPLETE=8
+RDM_PKG_POSTINSTALL_ERROR=9
+RDM_PKG_INVALID_INPUT=10
+
+APP_NAME=""
+APP_VERSION=""
 APP_HOME_DIR=""
 APP_SIGNED_TAR_FILE=""
 APP_PACKAGE_FILE=""
@@ -45,6 +62,16 @@ APP_PADDING_FILE="pkg_padding"
 APP_MANIFEST_FILE="pkg_cpemanifest"
 APP_METADATA_FILE="package.json"
 APP_CPE_METADATA_FILE=""
+
+RFC_DOWNLOAD_LOCATION=""
+RDM_DOWNLOAD_LOCATION=""
+RDM_BUNDLE_LIST=""
+
+if [ "$DEVICE_TYPE" = "broadband" ]; then
+        RFC_DOWNLOAD_LOCATION=$(dmcli eRT getv Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl | grep string | awk '{print $5}')
+else
+        RFC_DOWNLOAD_LOCATION=$(/usr/bin/tr181 -g Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl 2>&1 > /dev/null)
+fi
 
 
 log()
@@ -60,12 +87,12 @@ downloadApp()
 		DOWNLOAD_LOCATION="$APP_DWLD_DIR"
 		HTTP_CODE="$APP_DWLD_DIR/http_code"
 
-		log "Downloading $APP_SIGNED_TAR_FILE from $FIRMWARE_LOCATION to $DOWNLOAD_LOCATION"
+		log "Downloading $APP_SIGNED_TAR_FILE to $DOWNLOAD_LOCATION"
 
         [ -d "$APP_DWLD_DIR" ] && rm -rf $APP_DWLD_DIR
         mkdir -p $APP_DWLD_DIR
 
-		applicationDownload "$FIRMWARE_LOCATION/$APP_SIGNED_TAR_FILE" "bundle"
+		applicationDownload "$RDM_DOWNLOAD_LOCATION/$APP_SIGNED_TAR_FILE" "bundle"
         return $?
 }
 
@@ -116,11 +143,11 @@ installApp()
 
 			sh /etc/rdm/getRdmDwldPath.sh "$pkg_name" "$package_size"
 			if [ $? -eq 0 ]; then
-				if [ -d "${MOUNT_DWLD_DIR}${RDM_DWLD_DIR}/$pkg_name" ]; then
-					rm -rf "${MOUNT_DWLD_DIR}${RDM_DWLD_DIR}/$pkg_name"
-				fi
-				mv $APP_DWLD_DIR "${MOUNT_DWLD_DIR}${RDM_DWLD_DIR}/$pkg_name"
-				APP_DWLD_DIR="${MOUNT_DWLD_DIR}${RDM_DWLD_DIR}/$pkg_name"
+				NVM_APP_DWLD_DIR="${MOUNT_DWLD_DIR}${RDM_DWLD_DIR}"
+				[ -d "${NVM_APP_DWLD_DIR}/$pkg_name" ] && rm -rf "${NVM_APP_DWLD_DIR}/$pkg_name"
+				mkdir -p "${NVM_APP_DWLD_DIR}"
+				mv "${APP_DWLD_DIR}" "${NVM_APP_DWLD_DIR}"
+				APP_DWLD_DIR="${NVM_APP_DWLD_DIR}/$pkg_name"
 				APP_HOME_DIR="${MOUNT_DWLD_DIR}/$pkg_name"
 				cd $APP_DWLD_DIR
 			fi
@@ -189,6 +216,23 @@ postVerifyInstall()
 }
 
 
+broadcastRDMPkgStatus()
+{
+        PKG_INFO="$1"
+        if type IARM_event_sender &> /dev/null; then
+            IARM_event_sender "$IARM_BUS_RDMMGR_EVENTNAME_APP_INSTALLATION_STATUS" "$IARM_BUS_RDMMGR_EVENT_APP_INSTALLATION_STATUS" "$(echo -e $PKG_INFO)" >> ${LOG_PATH}/rdm_status.log 2>&1
+        fi
+}
+
+
+updatePkgStatus()
+{
+        APP_INST_STATUS="$1"
+        pkg_info="pkg_name:$APP_NAME\npkg_version:$APP_VERSION\npkg_inst_status:$APP_INST_STATUS\npkg_inst_path:$APP_HOME_DIR"
+        broadcastRDMPkgStatus "$pkg_info"
+}
+
+
 updatePackage()
 {
         pkg_name=$1
@@ -207,6 +251,7 @@ updatePackage()
 		downloadApp $pkg_name
         if [ $? -ne 0 ]; then
 				log "Download failed for ${pkg_name} package"
+				updatePkgStatus "$RDM_PKG_DOWNLOAD_ERROR"
                 rm -rf ${APP_DWLD_DIR}
                 return 1
         fi
@@ -215,6 +260,7 @@ updatePackage()
         extractApp
         if [ $? -ne 0 ]; then
 				log "Extraction failed for ${pkg_name} package"
+				updatePkgStatus "$RDM_PKG_EXTRACT_ERROR"
                 rm -rf ${APP_DWLD_DIR}
                 return 1
         fi
@@ -223,6 +269,7 @@ updatePackage()
         installApp $pkg_name
         if [ $? -ne 0 ]; then
 				log "Installation failed for ${pkg_name} package"
+				updatePkgStatus "$RDM_PKG_EXTRACT_ERROR"
                 rm -rf ${APP_DWLD_DIR}
                 rm -rf ${APP_HOME_DIR}
                 return 1
@@ -232,6 +279,7 @@ updatePackage()
         verifyAppSignature
         if [ $? -ne 0 ]; then
                 log "Signature verification failed for ${pkg_name} package"
+				updatePkgStatus "$RDM_PKG_VALIDATE_ERROR"
                 rm -rf ${APP_DWLD_DIR}
                 rm -rf ${APP_HOME_DIR}
                 return 1
@@ -241,6 +289,7 @@ updatePackage()
         postVerifyInstall
         if [ $? -ne 0 ]; then
                 log "Post-Installation failed for ${pkg_name} package"
+				updatePkgStatus "$RDM_PKG_POSTINSTALL_ERROR"
                 rm -rf ${APP_DWLD_DIR}
                 rm -rf ${APP_HOME_DIR}
                 return 1
@@ -251,34 +300,60 @@ updatePackage()
 
 ############################ MAIN APPLICATION ############################
 
-XCONF_BUNDLE_LIST="$1"
-FIRMWARE_LOCATION="$2"
+RDM_BUNDLE_LIST="$1"
+RDM_DOWNLOAD_LOCATION="$2"
 
-if [ -z "$XCONF_BUNDLE_LIST" -o -z "$FIRMWARE_LOCATION" ]; then
-        log "Invalid input. Exiting"
+if [ -z "$RDM_BUNDLE_LIST" ]; then
+        log "RDM Bundle list empty. Exiting"
         exit 1
-else
-        # Remove any leading and trailing whitespace and store it
-        XCONF_BUNDLE_LIST="$(echo $XCONF_BUNDLE_LIST | xargs | tr ',' ' ')"
 fi
 
+if [ -z "$RDM_DOWNLOAD_LOCATION" ]; then
+        if [ -n "$RFC_DOWNLOAD_LOCATION" ]; then
+                RDM_DOWNLOAD_LOCATION="$RFC_DOWNLOAD_LOCATION"
+        fi
 
-# Loop throught the list of packages and its version
-# Expected list from xconf - ABun:AVer,BBun:Bver
+        if [ -f "$RDM_SSR_LOCATION" ]; then
+                RDM_SSR_URL=$(sed -n '/^http/p' $RDM_SSR_LOCATION)
+                if [ -n "$RDM_SSR_URL" ]; then
+                         RDM_DOWNLOAD_LOCATION="$RDM_SSR_URL"
+                fi
+        fi
 
-log "Parsing through the bundle list received from Xconf"
+        if [ -z "$RDM_DOWNLOAD_LOCATION" ]; then
+                log "RDM Download URL is not available. Exiting"
+                exit 1
+        fi
+fi
+
+# Enforce HTTPs download for Downloadable modules
+RDM_DOWNLOAD_LOCATION=$(echo $RDM_DOWNLOAD_LOCATION | sed "s/http:/https:/g")
+
+log "RDM Bundle list: $RDM_BUNDLE_LIST"
+log "RDM Download URL: $RDM_DOWNLOAD_LOCATION"
 
 failCount=0
 
-for bund_vers in $XCONF_BUNDLE_LIST
+# Remove any leading and trailing whitespace and store it
+RDM_BUNDLE_LIST="$(echo $RDM_BUNDLE_LIST | xargs | tr ',' ' ')"
+
+# Loop throught the list of packages and its version
+# Expected input is of the format - "ABun:AVer BBun:Bver"
+
+for bund_vers in $RDM_BUNDLE_LIST
 do
         if [ -n "$bund_vers" ]; then
                 cloud_bundle_name=$(echo $bund_vers | awk -F":" '{print $1}')
                 cloud_bundle_ver=$(echo $bund_vers | awk -F":" '{print $2}')
+                APP_NAME="$cloud_bundle_name"
+                APP_VERSION="$cloud_bundle_ver"
                 if [ -z "$cloud_bundle_name" -o -z "$cloud_bundle_ver" ]; then
+                        log "Invalid input - $bund_vers. Package name or Package version missing"
+                        updatePkgStatus "$RDM_PKG_INVALID_INPUT"
                         continue
                 fi
-                log "Package name: $cloud_bundle_name and Package version: $cloud_bundle_ver received from Xconf"
+
+                log "Package name: $cloud_bundle_name and Package version: $cloud_bundle_ver"
 
                 # Check if the package is already installed. If so compare the version
                 if [ -f "${BUNDLE_METADATA_PATH}/${cloud_bundle_name}_package.json" ]; then
@@ -299,6 +374,7 @@ do
                                         log "CPE package version ("$cpe_bundle_ver") and Requested package version ("$cloud_bundle_ver") are different for ${cloud_bundle_name}"
                                 else
                                         log "CPE package version ("$cpe_bundle_ver") and Requested package version ("$cloud_bundle_ver") are same for ${cloud_bundle_name}. No update required"
+                                        updatePkgStatus "$RDM_PKG_INSTALL_COMPLETE"
                                         continue
                                 fi
 
@@ -314,9 +390,11 @@ do
                 updatePackage ${cloud_bundle_name} ${cloud_bundle_ver}
                 if [ $? -ne 0 ]; then
                         log "${cloud_bundle_name} package installation failed"
+                        updatePkgStatus "$RDM_PKG_INSTALL_ERROR"
                         failCount=`expr $failCount + 1`
                 else
                         log "${cloud_bundle_name} package installed successfully"
+                        updatePkgStatus "$RDM_PKG_INSTALL_COMPLETE"
                 fi
         fi
 done
