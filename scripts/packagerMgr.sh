@@ -31,12 +31,18 @@ if [ -f /etc/rdm/loggerUtils.sh ];then
 else
     echo "File Not Found, /etc/rdm/loggerUtils.sh"
 fi
+
+if [ -f /etc/rdm/downloadUtils.sh ];then
+    . /etc/rdm/downloadUtils.sh
+else
+    echo "File Not Found, /etc/rdm/downloadUtils.sh"
+fi
+
 if [ -f /lib/rdk/t2Shared_api.sh ]; then
     source /lib/rdk/t2Shared_api.sh
 fi
-RDM_SSR_LOCATION=/tmp/.rdm_ssr_location
+
 RDM_DOWNLOAD_PATH=/tmp/rdm/
-CONFIGPARAMGEN=/usr/bin/configparamgen
 THUNDER_SECURITY_UTIL=/usr/bin/WPEFrameworkSecurityUtility
 THUNDER_SECURITY_TOKEN_FILE=/tmp/.wpe_secure_token
 APP_MOUNT_PATH=/media/apps
@@ -45,11 +51,6 @@ PACKAGE_EXTRACTION_FAILED=/tmp/.opkg_rdm_extract_failed
 PACKAGE_DOWNLOAD_FAILED=/tmp/.opkg_rdm_download_failed
 PACKAGE_SIGN_VERIFY_FAILED=/tmp/.opkg_rdm_sign_verify_failed
 PACKAGE_SIGN_VERIFY_SUCCESS=/tmp/.opkg_rdm_sign_verify_success
-
-#Read the Download Mgr Url fro RFC
-if [ -f /usr/bin/tr181 ];then
-    DEFAULT_URL=`/usr/bin/tr181 -g Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl 2>&1 > /dev/null`
-fi
 
 usage()
 {
@@ -127,7 +128,6 @@ if [ ! $5 ];then
      log_msg "Package Name from meta data: /etc/rdm/rdm-manifest.json"
      # Retrive the Appln metadata
      DOWNLOAD_PKG_NAME=`/usr/bin/jsonquery -f /etc/rdm/rdm-manifest.json  --path=//packages/$DOWNLOAD_APP_MODULE/pkg_name`
-     log_msg "Meta-data: package name: $DOWNLOAD_PKG_NAME"
 else
      DOWNLOAD_PKG_NAME=$5
      applicationSuffix="${DOWNLOAD_PKG_NAME}-signed"
@@ -140,7 +140,13 @@ log_msg "PKG_AUTHENTICATION = $PKG_AUTHENTICATION"
 log_msg "PKG_EXTN = $PACKAGE_EXTN"
 
 DOWNLOAD_APP_NAME=`/usr/bin/jsonquery -f /etc/rdm/rdm-manifest.json  --path=//packages/$DOWNLOAD_APP_MODULE/app_name`
-log_msg "Meta-data: package name: $DOWNLOAD_APP_NAME"
+
+if [ -f /tmp/.rdm-apps-data/${DOWNLOAD_APP_MODULE}.conf ]; then
+    source /tmp/.rdm-apps-data/${DOWNLOAD_APP_MODULE}.conf
+fi
+
+log_msg "Meta-data: App name: $DOWNLOAD_APP_NAME"
+log_msg "Meta-data: Package name: $DOWNLOAD_PKG_NAME"
 
 if [ ! "$DOWNLOAD_APP_NAME" ];then
     DOWNLOAD_APP_NAME=$DOWNLOAD_APP_MODULE
@@ -231,37 +237,10 @@ invokePackager()
     done
 }
 
-if [ -f /tmp/.xconfssrdownloadurl ];then
-    cp /tmp/.xconfssrdownloadurl /tmp/.rdm_ssr_location
-fi
-
-if [ ! -f $RDM_SSR_LOCATION ];then
-    log_msg "$RDM_SSR_LOCATION SSR URL Location Input File is not there"
+url=$(getDownloadUrl)
+if [ -z $url ]; then
+    log_msg "RDM download url is not available in both $RDM_SSR_LOCATION and RFC parameter. Exiting..."
     exit 1
-elif [ ! -s $RDM_SSR_LOCATION ];then
-    log_msg "Download URL is empty Inside $RDM_SSR_LOCATION"
-    exit 1
-else
-    url=`cat $RDM_SSR_LOCATION`
-
-    # Verify the Xconf response in /tmp/.xconfssrdownloadurl
-    if [ "$url" == "404" ]; then     
-        log_msg "Received 404 error from Xconf Server, checking RFC for RDM Default url"
-        if  [  ! -z "$DEFAULT_URL" ] && [ "$DEFAULT_URL" == " " ]; then
-            log_msg "RFC Param Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl is not set"
-            exit 1
-        else
-            #Use default url from RFC param
-            log_msg "Using RDM Default url $DEFAULT_URL to download from the Xconf Server"
-            url=$DEFAULT_URL
-        fi
-    fi
-
-    # Enforce HTTPs download for Downloadable modules
-    log_msg "Replacing http with https in curl download request"
-    url=`echo $url | sed "s/http:/https:/g"` 
-
-    log_msg "RDM App Download URL Location is $url"
 fi
 
 invokePackager $url/${DOWNLOAD_PKG_NAME}

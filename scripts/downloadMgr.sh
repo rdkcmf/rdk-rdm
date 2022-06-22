@@ -18,6 +18,10 @@
 # limitations under the License.
 ##########################################################################
 
+if [ -f /etc/rdm/rdmIarmEvents.sh ];then
+    . /etc/rdm/rdmIarmEvents.sh
+fi
+
 if [ -f /etc/rdm/downloadUtils.sh ];then
     . /etc/rdm/downloadUtils.sh
 else
@@ -26,24 +30,12 @@ fi
 
 . /etc/device.properties
 
-RDM_SSR_LOCATION=/tmp/.rdm_ssr_location
 RDM_DOWNLOAD_PATH=/tmp/rdm/
-PEER_COMM_DAT="/etc/dropbear/elxrretyt.swr"
-PEER_COMM_ID="/tmp/elxrretyt-rdm.swr"
 APPLN_HOME_PATH=/tmp/${DOWNLOAD_APP_MODULE}
 APP_MOUNT_PATH=/media/apps
 DIRECT_BLOCK_FILENAME="${DIRECT_BLOCK_FILENAME}_rdm"
 CB_BLOCK_FILENAME="${CB_BLOCK_FILENAME}_rdm"
 FORCE_DIRECT_ONCE="${FORCE_DIRECT_ONCE}_rdm"
-
-#Read the Download Mgr Url fro RFC
-if [ "$DEVICE_TYPE" = "broadband" ]; then
-    DEFAULT_URL=`dmcli eRT getv Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl | grep string | awk '{print $5}'`
-else
-    if [ -f /usr/bin/tr181 ];then
-        DEFAULT_URL=`/usr/bin/tr181 -g Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl 2>&1 > /dev/null`
-    fi
-fi
 
 usage()
 {
@@ -72,13 +64,13 @@ else
 fi
 
 # Input Parameter: Application Home Path
-if [ ! "$2" ];then
+if [ ! "$2" -o -z "$2" -o "$2" = "/tmp" ];then
       APPLN_HOME_PATH=/tmp/$DOWNLOAD_APP_MODULE
       RDM_DOWNLOAD_PATH=/tmp/rdm
 else
       log_msg "using the custom HOME path:$2"
       APPLN_HOME_PATH=$2/$DOWNLOAD_APP_MODULE
-      RDM_DOWNLOAD_PATH=$2/rdm
+      RDM_DOWNLOAD_PATH=$APP_MOUNT_PATH/rdm
 fi
 
 DOWNLOAD_MGR_PIDFILE=/tmp/.dlApp${DOWNLOAD_APP_MODULE}.pid
@@ -134,9 +126,11 @@ log_msg "DOWNLOAD_APP_MODULE = $DOWNLOAD_APP_MODULE"
 log_msg "PKG_AUTHENTICATION = $PKG_AUTHENTICATION"
 log_msg "PKG_EXTN = $PACKAGE_EXTN"
 
-DOWNLOAD_APP_NAME=`/usr/bin/jsonquery -f /etc/rdm/rdm-manifest.json  --path=//packages/$DOWNLOAD_APP_MODULE/app_name`
+if [ -f /tmp/.rdm-apps-data/${DOWNLOAD_APP_MODULE}.conf ]; then
+    source /tmp/.rdm-apps-data/${DOWNLOAD_APP_MODULE}.conf
+fi
+
 log_msg "Meta-data: package name: $DOWNLOAD_APP_NAME"
-DOWNLOAD_APP_SIZE=`/usr/bin/jsonquery -f /etc/rdm/rdm-manifest.json  --path=//packages/$DOWNLOAD_APP_MODULE/app_size`
 log_msg "Meta-data: package size: $DOWNLOAD_APP_SIZE"
 
 if [ ! "$DOWNLOAD_APP_NAME" ];then
@@ -162,6 +156,19 @@ DOWNLOAD_APP_SSR_LOCATION=/nvram/.download_ssr_location
 
 HTTP_CODE="$APPLN_HOME_PATH/httpcode"
 
+updatePkgStatus()
+{
+        APP_INST_STATUS="$1"
+
+        if [ -z "$DOWNLOAD_PKG_VERSION" ]; then
+            DOWNLOAD_PKG_VERSION="NA"
+        fi
+
+        pkg_info="pkg_name:$DOWNLOAD_APP_NAME\npkg_version:$DOWNLOAD_PKG_VERSION\npkg_inst_status:$APP_INST_STATUS\npkg_inst_path:$APPLN_HOME_PATH"
+        broadcastRDMPkgStatus "$pkg_info"
+}
+
+
 # Initialize codebig flag value
 UseCodebig=0
 log_msg "Checking Codebig flag..." 
@@ -179,8 +186,6 @@ if [ ! -d $DOWNLOAD_LOCATION ]; then
       mkdir -p $DOWNLOAD_LOCATION
 fi
 
-#Setup the URL Location for RDM packages
-ARM_SCP_IP_ADRESS=$ARM_INTERFACE_IP
 if [ ! $ARM_SCP_IP_ADRESS ];then
       log_msg "Either Missing ARM SCP IP ADDRESS , Please Check /etc/device.properties "
       log_msg "             Or               "
@@ -189,66 +194,11 @@ if [ ! $ARM_SCP_IP_ADRESS ];then
       log_msg "Processes are running on the ATOM side "
 fi
 
-if [ -f /tmp/.xconfssrdownloadurl ];then
-           cp /tmp/.xconfssrdownloadurl /tmp/.rdm_ssr_location
-           cp /tmp/.rdm_ssr_location /nvram/.rdm_ssr_location
-else
-      if [ "$BOX_TYPE" = "XB3" ]; then
-           checkstatus=1
-           counter=0
-           log_msg "DOWNLOADING: /tmp/.xconfssrdownloadurl from ARM Side"
-           if [ ! -f $PEER_COMM_ID ]; then
-               $CONFIGPARAMGEN jx $PEER_COMM_DAT $PEER_COMM_ID
-           fi
-           while [ $checkstatus -eq 1 ]
-           do
-                scp -i $PEER_COMM_ID root@$ARM_SCP_IP_ADRESS:/tmp/.xconfssrdownloadurl $RDM_SSR_LOCATION
-                checkstatus=$?
-                if [ $checkstatus -eq 0 ] && [ -f $RDM_SSR_LOCATION ];then
-                     cp $RDM_SSR_LOCATION /nvram/.rdm_ssr_location
-                else
-                     log_msg "scp failed for /tmp/.xconfssrdownloadurl, Please Check Firmware Upgrade Status at ARM side"
-                     sleep 5
-                fi
-                counter=`expr $counter + 1`
-                if [ $counter -eq 3 ];then
-                     checkstatus=0
-                     if [ -f /nvram/.rdm_ssr_location ];then
-                          cp /nvram/.rdm_ssr_location /tmp/.rdm_ssr_location
-                     fi
-                fi
-          done
-     fi
-fi
-
-if [ -f $RDM_SSR_LOCATION ]; then
-    get_url=`sed -n '/^http/p' $RDM_SSR_LOCATION`
-    if [ -z $get_url ]; then
-           log_msg "Download URL is not available in $RDM_SSR_LOCATION"
-           if [ -n "$DEFAULT_URL" ]; then
-               log_msg "Using RDM Default url $DEFAULT_URL to download from the Xconf Server"
-               url=$DEFAULT_URL
-           else
-               log_msg "RFC Param Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl is not set. Exiting..."
-               exit 1
-           fi
-    else
-         log_msg "Download URL available in $RDM_SSR_LOCATION is $(cat $RDM_SSR_LOCATION)"
-         url=`cat $RDM_SSR_LOCATION`
-    fi
-elif [ -n "$DEFAULT_URL" ]; then
-         log_msg "Using RDM Default url $DEFAULT_URL to download from the Xconf Server"
-         url=$DEFAULT_URL
-else
-         log_msg "RDM download url is not available in both $RDM_SSR_LOCATION and RFC parameter. Exiting..."
-         exit 1
-fi
-
-# Enforce HTTPs download for Downloadable modules
-if [ -n "$url" ]; then
-        log_msg "Replacing http with https in curl download request"
-        url=`echo $url | sed "s/http:/https:/g"`
-        log_msg "RDM App Download URL Location is $url"
+url=$(getDownloadUrl)
+if [ -z $url ]; then
+    log_msg "RDM download url is not available in both $RDM_SSR_LOCATION and RFC parameter. Exiting..."
+    updatePkgStatus "$RDM_DOWNLOAD_URL_NOT_FOUND"
+    exit 1
 fi
 
 # Download the File Package  if not already downloaded
@@ -374,6 +324,7 @@ else
                 ar -x $finalPackage
                 if [ $? -ne 0 ];then
                      log_msg "IPK Extraction of $finalPackage Failed.."
+		     updatePkgStatus "$RDM_PKG_EXTRACT_ERROR"
                 else    
                      umask 544
                      #default compression method in opkg is gz for daisy/morty and xz for dunfell
@@ -382,6 +333,7 @@ else
                      tar -xvf $data_file -C $APPLN_HOME_PATH/ >> $LOG_PATH/rdm_status.log 2>&1
                      if [ $? -ne 0 ];then
                           log_msg "tar Extraction Failed for $data_file"
+			  updatePkgStatus "$RDM_PKG_EXTRACT_ERROR"
                      else
                           loop=2
                      fi
@@ -424,6 +376,7 @@ else
                tar -xvf $finalPackage -C $APPLN_HOME_PATH/ >> $LOG_PATH/rdm_status.log 2>&1
                if [ $? -ne 0 ];then
                      log_msg "tar Extraction Failed for $finalPackage"
+		     updatePkgStatus "$RDM_PKG_EXTRACT_ERROR"
                else
                      loop=2
                fi
@@ -474,6 +427,7 @@ if [ "$IMAGE_TYPE" != "OSS" ]; then
 
     if [ $? -ne 0 ];then
         log_msg "signature validation failed"
+        updatePkgStatus "$RDM_PKG_VALIDATE_ERROR"
         t2CountNotify "RDM_ERR_rsa_signature_failed"
         # Clear all files as partial extraction may happen due to corrupted tar file 
         rm -rf $DOWNLOAD_LOCATION/*
@@ -486,6 +440,7 @@ else
 fi
 
 log_msg "RDM package download success: $DOWNLOAD_PKG_NAME"
+updatePkgStatus "$RDM_PKG_INSTALL_COMPLETE"
 
 log_msg "$DOWNLOAD_LOCATION// CleanUp"
 if [ "$APPLN_HOME_PATH" != "$APP_MOUNT_PATH/${DOWNLOAD_APP_MODULE}" ]; then

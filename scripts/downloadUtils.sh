@@ -34,7 +34,7 @@ if [ -f /lib/rdk/t2Shared_api.sh ]; then
     source /lib/rdk/t2Shared_api.sh
 fi
 
-
+JSONQUERY="/usr/bin/jsonquery"
 CONFIGPARAMGEN=/usr/bin/configparamgen
 DIRECT_BLOCK_FILENAME="/tmp/.lastdirectfail"
 DIRECT_BLOCK_TIME=86400
@@ -42,6 +42,14 @@ CB_BLOCK_FILENAME="/tmp/.lastcodebigfail"
 CB_BLOCK_TIME=1800
 FORCE_DIRECT_ONCE="/tmp/.forcedirectonce"
 BB_TRIES=3
+RDM_SSR_LOCATION=/tmp/.rdm_ssr_location
+PEER_COMM_DAT="/etc/dropbear/elxrretyt.swr"
+PEER_COMM_ID="/tmp/elxrretyt-rdm.swr"
+ARM_SCP_IP_ADRESS=$ARM_INTERFACE_IP
+
+JSONQUERY="/usr/bin/jsonquery"
+DEVICE_MODEL=$MODEL_NUM
+DEVICE_BRANCH=$(grep BRANCH /version.txt |  cut -d "=" -f2)
 
 ## Retry Interval in seconds
 DOWNLOAD_APP_DEFAULT_RETRY_DELAY=10
@@ -69,6 +77,24 @@ http_code=1
 EnableOCSPStapling="/tmp/.EnableOCSPStapling"
 EnableOCSP="/tmp/.EnableOCSPCA"
 
+#Read the Download Mgr Url from RFC
+if [ "$DEVICE_TYPE" = "broadband" ]; then
+    DEFAULT_URL=`dmcli eRT getv Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl | grep string | awk '{print $5}'`
+else
+    if [ -f /usr/bin/tr181 ];then
+        DEFAULT_URL=`/usr/bin/tr181 -g Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl 2>&1 > /dev/null`
+    fi
+fi
+
+getJSONValue()
+{
+    $JSONQUERY -f $1 -p $2 2> /dev/null
+}
+
+getJSONArraySize()
+{
+    $JSONQUERY -f $1 -p $2 -l 2> /dev/null
+}
 
 get_core_value()
 {
@@ -156,6 +182,69 @@ downloadApp_getVersionPrefix()
    echo $versionPrefix
 }
 
+getDownloadUrl()
+{
+    #Setup the URL Location for RDM packages
+    if [ -f /tmp/.xconfssrdownloadurl ];then
+        cp /tmp/.xconfssrdownloadurl /tmp/.rdm_ssr_location
+        if [ -d "/nvram" ]; then
+            cp /tmp/.rdm_ssr_location /nvram/.rdm_ssr_location
+        fi
+    elif [ "$BOX_TYPE" = "XB3" ]; then
+        checkstatus=1
+        counter=0
+        log_msg "DOWNLOADING: /tmp/.xconfssrdownloadurl from ARM Side"
+        if [ ! -f $PEER_COMM_ID ]; then
+            $CONFIGPARAMGEN jx $PEER_COMM_DAT $PEER_COMM_ID
+        fi
+        while [ $checkstatus -eq 1 ]
+        do
+            scp -i $PEER_COMM_ID root@$ARM_SCP_IP_ADRESS:/tmp/.xconfssrdownloadurl $RDM_SSR_LOCATION
+            checkstatus=$?
+            if [ $checkstatus -eq 0 ] && [ -f $RDM_SSR_LOCATION ];then
+                cp $RDM_SSR_LOCATION /nvram/.rdm_ssr_location
+            else
+                log_msg "scp failed for /tmp/.xconfssrdownloadurl, Please Check Firmware Upgrade Status at ARM side"
+                sleep 5
+            fi
+            counter=`expr $counter + 1`
+            if [ $counter -eq 3 ];then
+                checkstatus=0
+                if [ -f /nvram/.rdm_ssr_location ];then
+                    cp /nvram/.rdm_ssr_location /tmp/.rdm_ssr_location
+                fi
+            fi
+        done
+    fi
+
+    if [ -f $RDM_SSR_LOCATION ]; then
+        get_url=`sed -n '/^http/p' $RDM_SSR_LOCATION`
+        if [ -z $get_url ]; then
+            log_msg "Download URL is not available in $RDM_SSR_LOCATION"
+            if [ -n "$DEFAULT_URL" ]; then
+                log_msg "Using RDM Default url $DEFAULT_URL to download from the Xconf Server"
+                url=$DEFAULT_URL
+            else
+                log_msg "RFC Param Device.DeviceInfo.X_RDKCENTRAL-COM_RFC.Feature.CDLDM.CDLModuleUrl is not set. Exiting..."
+                exit 1
+            fi
+       else
+           log_msg "Download URL available in $RDM_SSR_LOCATION is $(cat $RDM_SSR_LOCATION)"
+           url=`cat $RDM_SSR_LOCATION`
+       fi
+    elif [ -n "$DEFAULT_URL" ]; then
+        log_msg "Using RDM Default url $DEFAULT_URL to download from the Xconf Server"
+        url=$DEFAULT_URL
+    fi
+
+    # Enforce HTTPs download for Downloadable modules
+    if [ -n "$url" ]; then
+        log_msg "Replacing http with https in curl download request"
+        url=`echo $url | sed "s/http:/https:/g"`
+        log_msg "RDM App Download URL Location is $url"
+    fi
+    echo $url
+}
 
 IsDirectBlocked()
 {
@@ -262,7 +351,7 @@ generateDownloadUrl()
     file=$1
     url=$2
     flag=$3
-    if [ $flag -eq 1 ]; then
+    if [ "$flag" = 1 ]; then
         getCodebigUrl $url
         if [ -f $EnableOCSPStapling ] || [ -f $EnableOCSP ]; then
             CURL_CMD="curl $TLS $IF_OPTION -fgL --cert-status --connect-timeout $CURL_TLS_TIMEOUT  -H '$authorizationHeader' -w '%{http_code}\n' -o \"$DOWNLOAD_LOCATION/$file\" '$serverUrl' > $HTTP_CODE"
@@ -400,7 +489,7 @@ applicationDownload()
             return 1
         fi
     else
-        if [ $UseCodebig -eq 1 ]; then
+        if [ "$UseCodebig" = 1 ]; then
             log_msg "applicationDownload: Codebig is enabled UseCodebig=$UseCodebig" 
             if [ "$DEVICE_TYPE" = "mediaclient" ]; then
                 # Use Codebig connection connection on XI platforms

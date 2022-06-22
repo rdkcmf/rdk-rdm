@@ -28,12 +28,48 @@ else
         BUNDLE_METADATA_PATH="/media/apps/etc/certs"
 fi
 
+VERSION_SORT_TMPDIR="/tmp/.version-sort"
 JSONQUERY="/usr/bin/jsonquery"
 PKG_METADATA_NAME="name"
 PKG_METADATA_VER="version"
 PKG_METADATA_LIST="contents"
 PKG_METADATA_SIZE="size"
 PKG_METADATA_INSTALL="installScript"
+
+
+getOlderVersion()
+{
+	ret=""
+
+	mkdir -p ${VERSION_SORT_TMPDIR}
+	CWD=$(pwd)
+	cd ${VERSION_SORT_TMPDIR}
+
+	for ver in "$@"; do
+		touch "$ver"
+	done
+
+	ret="$(ls -vr | xargs | tr " " "\n" | tail -n1)"
+	cd ${CWD}
+	rm -rf ${VERSION_SORT_TMPDIR}
+
+	echo "$ret"
+}
+
+getInstalledVersions()
+{
+    APP_CPE_METADATA_FILE=$1
+
+    installed_vlist=""
+    for metadata_file in $APP_CPE_METADATA_FILE
+    do
+        vlist=$(getJSONValue "$metadata_file" "version")
+        installed_vlist="$vlist $installed_vlist"
+    done
+
+    installedVersions=$(echo "$installed_vlist" | xargs)
+    echo $installedVersions
+}
 
 getPkgMetadata()
 {

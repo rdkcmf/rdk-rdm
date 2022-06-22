@@ -19,11 +19,15 @@
 ##########################################################################
 
 if [ -f /etc/rdm/downloadUtils.sh ]; then
-		source /etc/rdm/downloadUtils.sh
+        source /etc/rdm/downloadUtils.sh
 fi
 
 if [ -f /etc/rdm/rdmBundleUtils.sh ]; then
         source /etc/rdm/rdmBundleUtils.sh
+fi
+
+if [ -f /etc/rdm/rdmIarmEvents.sh ]; then
+        source /etc/rdm/rdmIarmEvents.sh
 fi
 
 DIRECT_BLOCK_FILENAME="${DIRECT_BLOCK_FILENAME}_rdmbdl"
@@ -34,23 +38,6 @@ TMP_DWLD_DIR="/tmp"
 MOUNT_DWLD_DIR="/media/apps"
 RDM_DWLD_DIR="/rdm/downloads"
 RDM_SSR_LOCATION="/tmp/.xconfssrdownloadurl"
-
-# RDM IARM status event
-IARM_BUS_RDMMGR_EVENTNAME_APP_INSTALLATION_STATUS="RDMAppStatusEvent"
-IARM_BUS_RDMMGR_EVENT_APP_INSTALLATION_STATUS=1
-
-# RDM IARM status enums
-RDM_PKG_INSTALL_COMPLETE=0
-RDM_PKG_INSTALL_ERROR=1
-RDM_PKG_DOWNLOAD_COMPLETE=2
-RDM_PKG_DOWNLOAD_ERROR=3
-RDM_PKG_EXTRACT_COMPLETE=4
-RDM_PKG_EXTRACT_ERROR=5
-RDM_PKG_VALIDATE_COMPLETE=6
-RDM_PKG_VALIDATE_ERROR=7
-RDM_PKG_POSTINSTALL_COMPLETE=8
-RDM_PKG_POSTINSTALL_ERROR=9
-RDM_PKG_INVALID_INPUT=10
 
 APP_NAME=""
 APP_VERSION=""
@@ -141,7 +128,7 @@ installApp()
 				mkdir -p "${NVM_APP_DWLD_DIR}"
 				mv "${APP_DWLD_DIR}" "${NVM_APP_DWLD_DIR}"
 				APP_DWLD_DIR="${NVM_APP_DWLD_DIR}/$pkg_name"
-				APP_HOME_DIR="${MOUNT_DWLD_DIR}/$pkg_name"
+				APP_HOME_DIR="${MOUNT_DWLD_DIR}/${pkg_name}/v${pkg_ver}/package"
 				cd $APP_DWLD_DIR
 			fi
 		else
@@ -209,14 +196,20 @@ postVerifyInstall()
 }
 
 
-broadcastRDMPkgStatus()
+uninstallApp()
 {
-        PKG_INFO="$1"
-        if type IARM_event_sender &> /dev/null; then
-            IARM_event_sender "$IARM_BUS_RDMMGR_EVENTNAME_APP_INSTALLATION_STATUS" "$IARM_BUS_RDMMGR_EVENT_APP_INSTALLATION_STATUS" "$(echo -e $PKG_INFO)" >> ${LOG_PATH}/rdm_status.log 2>&1
-        fi
-}
+		version="$1"
+		[ -z "$version" ] && return 1
 
+		pkg_dir="${MOUNT_DWLD_DIR}/${APP_NAME}/v${version}"
+
+		if [ -d "$pkg_dir" ]; then
+			log "Removing $pkg_dir"
+			rm -rf "${pkg_dir}"
+		fi
+
+		return $?
+}
 
 updatePkgStatus()
 {
@@ -293,88 +286,107 @@ updatePackage()
 
 ############################ MAIN APPLICATION ############################
 
-RDM_BUNDLE_LIST="$1"
-RDM_DOWNLOAD_LOCATION="$2"
+APP_NAME="$1"
+VERSION_LIST="$2"
 
 RDM_DOWNLOAD_LOCATION=$(getDownloadUrl)
 if [ -z $RDM_DOWNLOAD_LOCATION ]; then
-    log_msg "RDM download url is not available in both $RDM_SSR_LOCATION and RFC parameter. Exiting..."
+    log_msg "RDM download url is not available in both $RDM_SSR_LOCATION and RFC parameter. Exiting"
     exit 1
 fi
 
-if [ -z "$RDM_BUNDLE_LIST" ]; then
-        log "RDM Bundle list empty. Exiting"
+# Expected input is of the format - "AppName" "1.0 2.0 3.0 4.0 5.0"
+if [ -z "$VERSION_LIST" -o -z "$APP_NAME" ]; then
+        log "Invalid input. Package name or Package version missing"
+	updatePkgStatus "$RDM_PKG_INVALID_INPUT"
         exit 1
 fi
 
-log "RDM Bundle list: $RDM_BUNDLE_LIST"
-log "RDM Download URL: $RDM_DOWNLOAD_LOCATION"
-
-failCount=0
+log "RDM versioned package: $APP_NAME, version list: $VERSION_LIST"
 
 # Remove any leading and trailing whitespace and store it
-RDM_BUNDLE_LIST="$(echo $RDM_BUNDLE_LIST | xargs | tr ',' ' ')"
+version_list="$(echo $VERSION_LIST | xargs)"
 
-# Loop throught the list of packages and its version
-# Expected input is of the format - "ABun:AVer BBun:Bver"
+n_versions=$(echo $version_list | wc -w)
+log "Number of versions passed through input: $n_versions"
 
-for bund_vers in $RDM_BUNDLE_LIST
+# If number of versions passed through input is greater than two,
+# then prune the older versions & install only the latest two versions
+
+if [ $n_versions -gt 2 ]; then
+	log "Prune the older versions from input"
+	while [ $n_versions -gt 2 ];
+        do
+                old_ver=$(getOlderVersion $version_list)
+                version_list=${version_list//${old_ver}/}
+                n_versions=$(echo $version_list | wc -w)
+        done
+        version_list=$(echo $version_list | xargs)
+
+	log "Latest two versions from input are $version_list"
+fi
+
+for ver in $version_list
 do
-        if [ -n "$bund_vers" ]; then
-                cloud_bundle_name=$(echo $bund_vers | awk -F":" '{print $1}')
-                cloud_bundle_ver=$(echo $bund_vers | awk -F":" '{print $2}')
-                APP_NAME="$cloud_bundle_name"
-                APP_VERSION="$cloud_bundle_ver"
-                if [ -z "$cloud_bundle_name" -o -z "$cloud_bundle_ver" ]; then
-                        log "Invalid input - $bund_vers. Package name or Package version missing"
-                        updatePkgStatus "$RDM_PKG_INVALID_INPUT"
-                        continue
-                fi
+        APP_VERSION=$ver
+        if [ -d "${MOUNT_DWLD_DIR}/$APP_NAME" ]; then
+            APP_CPE_METADATA_FILE="$(find ${MOUNT_DWLD_DIR}/${APP_NAME} -maxdepth 2 -name "*_package.json" | sort | uniq | xargs)"
+        else
+            log "Metadata for ${APP_NAME} package not found"
+        fi
 
-                log "Package name: $cloud_bundle_name and Package version: $cloud_bundle_ver"
-
-                # Check if the package is already installed. If so compare the version
-                if [ -f "${BUNDLE_METADATA_PATH}/${cloud_bundle_name}_package.json" ]; then
-                        log "Metadata for ${cloud_bundle_name} package found in ${BUNDLE_METADATA_PATH}"
-                        APP_CPE_METADATA_FILE="${BUNDLE_METADATA_PATH}/${cloud_bundle_name}_package.json"
-                elif [ -f "/etc/certs/${cloud_bundle_name}_package.json" ]; then
-                        log "Metadata for ${cloud_bundle_name} package found in /etc/certs"
-                        APP_CPE_METADATA_FILE="/etc/certs/${cloud_bundle_name}_package.json"
+        if [ -n "${APP_CPE_METADATA_FILE}" ]; then
+            installed_vlist=$(getInstalledVersions "$APP_CPE_METADATA_FILE")
+            installed_verCount=$(echo $installed_vlist | wc -w)
+            if [[ "$installed_vlist" =~ .*"$APP_VERSION".* ]]; then
+                log "Requested package version ("$APP_VERSION") for ${APP_NAME} package already installed in CPE. No update required"
+                continue
+            elif [ $installed_verCount -eq 2 ]; then
+                verList="$installed_vlist $APP_VERSION"
+                old_ver=$(getOlderVersion $verList)
+                if [ "$old_ver" = "$APP_VERSION" ]; then
+                    log "Requested package version ("$APP_VERSION") for ${APP_NAME} package is older. CPE is already installed with latest versions ($installed_vlist). Hence No update required"
+		    continue
                 else
-                        log "Metadata for ${cloud_bundle_name} package not found"
+                    log "${APP_NAME} package of version ${APP_VERSION} not installed already in CPE"
+		    log "Installing ${APP_NAME} package v${APP_VERSION}"
+		    updatePackage ${APP_NAME} ${APP_VERSION}
                 fi
+            else
+                log "${APP_NAME} package of version ${APP_VERSION} not installed already in CPE"
+                log "Installing ${APP_NAME} package v${APP_VERSION}"
+		updatePackage ${APP_NAME} ${APP_VERSION}
+            fi
+        else
+            log "Installing ${APP_NAME} package v${APP_VERSION}"
+            updatePackage ${APP_NAME} ${APP_VERSION}
+        fi
 
-                if [ -n "$APP_CPE_METADATA_FILE" ]; then
-                        cpe_bundle_ver=$(getPkgMetadata $APP_CPE_METADATA_FILE $PKG_METADATA_VER)
-                        if [ -n "$cpe_bundle_ver" ]; then
-                                log "Found ${cloud_bundle_name} package of version ${cpe_bundle_ver} already installed in CPE"
-                                if [ "x$cloud_bundle_ver" != "x$cpe_bundle_ver" ]; then
-                                        log "CPE package version ("$cpe_bundle_ver") and Requested package version ("$cloud_bundle_ver") are different for ${cloud_bundle_name}"
-                                else
-                                        log "CPE package version ("$cpe_bundle_ver") and Requested package version ("$cloud_bundle_ver") are same for ${cloud_bundle_name}. No update required"
-                                        updatePkgStatus "$RDM_PKG_INSTALL_COMPLETE"
-                                        continue
-                                fi
-
-                        else
-                                log "Could not fetch version for ${cloud_bundle_name} package. Hence invalidating it"
-                        fi
-                else
-                        log "${cloud_bundle_name} package not installed already in CPE"
-                fi
-
-                log "Installing ${cloud_bundle_name} package v${cloud_bundle_ver}"
-
-                updatePackage ${cloud_bundle_name} ${cloud_bundle_ver}
-                if [ $? -ne 0 ]; then
-                        log "${cloud_bundle_name} package installation failed"
-                        updatePkgStatus "$RDM_PKG_INSTALL_ERROR"
-                        failCount=`expr $failCount + 1`
-                else
-                        log "${cloud_bundle_name} package installed successfully"
-                        updatePkgStatus "$RDM_PKG_INSTALL_COMPLETE"
-                fi
+        if [ $? -ne 0 ]; then
+            log "${APP_NAME} package of version ${APP_VERSION} installation failed"
+            updatePkgStatus "$RDM_PKG_INSTALL_ERROR"
+	    exit 1
+        else
+            log "${APP_NAME} package of version ${APP_VERSION} installed successfully"
+            updatePkgStatus "$RDM_PKG_INSTALL_COMPLETE"
         fi
 done
 
-exit $failCount
+
+# Ensure box is installed with latest two versions
+APP_CPE_METADATA_FILE="$(find ${MOUNT_DWLD_DIR}/${APP_NAME} -maxdepth 2 -name "*_package.json" | sort | uniq | xargs)"
+if [ -n "${APP_CPE_METADATA_FILE}" ]; then
+        installedVersions=$(getInstalledVersions "$APP_CPE_METADATA_FILE")
+        n_versions=$(echo $installedVersions | wc -w)
+        while [ $n_versions -gt 2 ];
+        do
+            old_ver=$(getOlderVersion $installedVersions)
+            log "uninstalling older version $old_ver of $APP_NAME"
+            uninstallApp "$old_ver"
+            installedVersions=${installedVersions//${old_ver}/}
+            n_versions=$(echo $installedVersions | wc -w)
+        done
+
+        installedVersions=$(echo "$installedVersions" | xargs)
+        log "Versions available in CPE for ${APP_NAME}: $installedVersions"
+fi

@@ -31,7 +31,9 @@ WORKDIR=$1
 PACKAGE_FILE=$2
 SIGNATURE_FILE=$3
 SIGNATURE_TYPE=$4
-PROCESS_CUSTOM_BUNDLE=$5
+
+APP_HOME_DIR=$5
+PROCESS_CUSTOM_BUNDLE=$6
 
 if [ "$PROCESS_CUSTOM_BUNDLE" = "1" ]; then
       log_msg "Verifying signature of RDM Bundle"
@@ -136,7 +138,8 @@ log_msg "Validate the Package"
 if [ -f /usr/bin/opensslVerify ];then
       if [ -e $CPEMANIFEST -a -n "$(echo $WORKDIR | awk '/^\/media\/apps\//')" ]; then
           if [ "$PROCESS_CUSTOM_BUNDLE" = "1" ]; then
-              sed -e "s/^/\/media\/apps\/${APP_NAME}\//" -i $CPEMANIFEST_PATH
+              app_dir=$(echo "$APP_HOME_DIR/" | sed 's/\//\\\//g')
+              sed -e "s/^/$app_dir/" -i $CPEMANIFEST_PATH
               sed -e "/${CPEMETADATA}/c\\${CPEMETADATA_PATH}" -i $CPEMANIFEST_PATH
           else
               CPEMANIFEST_PATH=$SDCARD_DLPATH/${APP_NAME}_cpemanifest
@@ -146,7 +149,8 @@ if [ -f /usr/bin/opensslVerify ];then
           echo "$WORKDIR/pkg_padding" >> $CPEMANIFEST_PATH
       elif [ -e $CPEMANIFEST -a -n "$(echo $WORKDIR | awk '/^\/tmp\//')" ]; then
           if [ "$PROCESS_CUSTOM_BUNDLE" = "1" ]; then
-              sed -e "s/^/\/tmp\/$APP_NAME\//" -i $CPEMANIFEST_PATH
+              app_dir=$(echo "$APP_HOME_DIR/" | sed 's/\//\\\//g')
+              sed -e "s/^/$app_dir/" -i $CPEMANIFEST_PATH
               sed -e "/${CPEMETADATA}/c\\${CPEMETADATA_PATH}" -i $CPEMANIFEST_PATH
           else
               CPEMANIFEST_PATH=$TMP_DLPATH/${APP_NAME}_cpemanifest
