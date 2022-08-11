@@ -24,6 +24,8 @@ else
     echo "File Not Found, /etc/rdm/downloadUtils.sh"
 fi
 
+. /etc/device.properties
+
 RDM_SSR_LOCATION=/tmp/.rdm_ssr_location
 RDM_DOWNLOAD_PATH=/tmp/rdm/
 PEER_COMM_DAT="/etc/dropbear/elxrretyt.swr"
@@ -453,29 +455,34 @@ else
     cd $CURRENT_PATH
 fi
 
+if [ "$IMAGE_TYPE" != "OSS" ]; then
 # Signature Validation
-if [ "$PKG_AUTHENTICATION" = "openssl" ];then
-     log_msg "openSSL Validation on the Package"
-     if [ "x$pkg_extracted" != "xtrue" ]; then
+    if [ "$PKG_AUTHENTICATION" = "openssl" ];then
+       log_msg "openSSL Validation on the Package"
+       if [ "x$pkg_extracted" != "xtrue" ]; then
         # Since KMS is adding 6 Bytes of Header, need to remove this before validation
         # KMS Header Removal from the Signature
-         log_msg "Removing the KMS Prefix Header"
-         dd if="$DOWNLOAD_LOCATION/$package_signatureFile" of="$DOWNLOAD_LOCATION/$package_signatureFile.truncated" bs=6 skip=1 && mv "$DOWNLOAD_LOCATION/$package_signatureFile.truncated" "$DOWNLOAD_LOCATION/$package_signatureFile"
-     fi
+            log_msg "Removing the KMS Prefix Header"
+            dd if="$DOWNLOAD_LOCATION/$package_signatureFile" of="$DOWNLOAD_LOCATION/$package_signatureFile.truncated" bs=6 skip=1 && mv "$DOWNLOAD_LOCATION/$package_signatureFile.truncated" "$DOWNLOAD_LOCATION/$package_signatureFile"
+       fi
 
-     sh /etc/rdm/opensslVerifier.sh ${DOWNLOAD_LOCATION}/ $package_tarFile $package_signatureFile "kms"
+       sh /etc/rdm/opensslVerifier.sh ${DOWNLOAD_LOCATION}/ $package_tarFile $package_signatureFile "kms"
+    else
+       log_msg "Application Download Not possible without Authentication"
+       log_msg "Supported Authentications: OpenSSL Verification"
+    fi
+
+    if [ $? -ne 0 ];then
+        log_msg "signature validation failed"
+        t2CountNotify "RDM_ERR_rsa_signature_failed"
+        # Clear all files as partial extraction may happen due to corrupted tar file 
+        rm -rf $DOWNLOAD_LOCATION/*
+        if [ -d $APPLN_HOME_PATH ];then rm -rf $APPLN_HOME_PATH/* ; fi
+        exit 3
+    fi
+
 else
-     log_msg "Application Download Not possible without Authentication"
-     log_msg "Supported Authentications: OpenSSL Verification"
-fi
-
-if [ $? -ne 0 ];then
-     log_msg "signature validation failed"
-     t2CountNotify "RDM_ERR_rsa_signature_failed"
-     # Clear all files as partial extraction may happen due to corrupted tar file 
-     rm -rf $DOWNLOAD_LOCATION/*
-     if [ -d $APPLN_HOME_PATH ];then rm -rf $APPLN_HOME_PATH/* ; fi
-     exit 3
+   log_msg "IMAGE_TYPE IS OSS. Signature validation not required"
 fi
 
 log_msg "RDM package download success: $DOWNLOAD_PKG_NAME"
