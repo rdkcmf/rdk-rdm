@@ -26,6 +26,10 @@ if [ -f /etc/rdm/rdmBundleUtils.sh ]; then
         source /etc/rdm/rdmBundleUtils.sh
 fi
 
+if [ -f /etc/rdm/rdmIarmEvents.sh ]; then
+        source /etc/rdm/rdmIarmEvents.sh
+fi
+
 DIRECT_BLOCK_FILENAME="${DIRECT_BLOCK_FILENAME}_rdmbdl"
 CB_BLOCK_FILENAME="${CB_BLOCK_FILENAME}_rdmbdl"
 FORCE_DIRECT_ONCE="${FORCE_DIRECT_ONCE}_rdmbdl"
@@ -34,23 +38,6 @@ TMP_DWLD_DIR="/tmp"
 MOUNT_DWLD_DIR="/media/apps"
 RDM_DWLD_DIR="/rdm/downloads"
 RDM_SSR_LOCATION="/tmp/.xconfssrdownloadurl"
-
-# RDM IARM status event
-IARM_BUS_RDMMGR_EVENTNAME_APP_INSTALLATION_STATUS="RDMAppStatusEvent"
-IARM_BUS_RDMMGR_EVENT_APP_INSTALLATION_STATUS=1
-
-# RDM IARM status enums
-RDM_PKG_INSTALL_COMPLETE=0
-RDM_PKG_INSTALL_ERROR=1
-RDM_PKG_DOWNLOAD_COMPLETE=2
-RDM_PKG_DOWNLOAD_ERROR=3
-RDM_PKG_EXTRACT_COMPLETE=4
-RDM_PKG_EXTRACT_ERROR=5
-RDM_PKG_VALIDATE_COMPLETE=6
-RDM_PKG_VALIDATE_ERROR=7
-RDM_PKG_POSTINSTALL_COMPLETE=8
-RDM_PKG_POSTINSTALL_ERROR=9
-RDM_PKG_INVALID_INPUT=10
 
 APP_NAME=""
 APP_VERSION=""
@@ -209,15 +196,6 @@ postVerifyInstall()
 }
 
 
-broadcastRDMPkgStatus()
-{
-        PKG_INFO="$1"
-        if type IARM_event_sender &> /dev/null; then
-            IARM_event_sender "$IARM_BUS_RDMMGR_EVENTNAME_APP_INSTALLATION_STATUS" "$IARM_BUS_RDMMGR_EVENT_APP_INSTALLATION_STATUS" "$(echo -e $PKG_INFO)" >> ${LOG_PATH}/rdm_status.log 2>&1
-        fi
-}
-
-
 updatePkgStatus()
 {
         APP_INST_STATUS="$1"
@@ -298,13 +276,15 @@ RDM_DOWNLOAD_LOCATION="$2"
 
 RDM_DOWNLOAD_LOCATION=$(getDownloadUrl)
 if [ -z $RDM_DOWNLOAD_LOCATION ]; then
-    log_msg "RDM download url is not available in both $RDM_SSR_LOCATION and RFC parameter. Exiting..."
+    log_msg "RDM download url is not available in both $RDM_SSR_LOCATION and RFC parameter. Exiting"
+    updatePkgStatus "$RDM_PKG_INVALID_INPUT"
     exit 1
 fi
 
 if [ -z "$RDM_BUNDLE_LIST" ]; then
-        log "RDM Bundle list empty. Exiting"
-        exit 1
+    log "RDM Bundle list empty. Exiting"
+    updatePkgStatus "$RDM_PKG_INVALID_INPUT"
+    exit 1
 fi
 
 log "RDM Bundle list: $RDM_BUNDLE_LIST"
@@ -351,9 +331,17 @@ do
                                 if [ "x$cloud_bundle_ver" != "x$cpe_bundle_ver" ]; then
                                         log "CPE package version ("$cpe_bundle_ver") and Requested package version ("$cloud_bundle_ver") are different for ${cloud_bundle_name}"
                                 else
-                                        log "CPE package version ("$cpe_bundle_ver") and Requested package version ("$cloud_bundle_ver") are same for ${cloud_bundle_name}. No update required"
-                                        updatePkgStatus "$RDM_PKG_INSTALL_COMPLETE"
-                                        continue
+                                        log "CPE package version ("$cpe_bundle_ver") and Requested package version ("$cloud_bundle_ver") are same for ${cloud_bundle_name}. Validate the package"
+                                        verifyAppSignature
+                                        if [ "$?" -eq "0" ]; then
+                                                log "Signature verification successful for ${cloud_bundle_name} package version ${cloud_bundle_ver}"
+                                                updatePkgStatus "$RDM_PKG_INSTALL_COMPLETE"
+                                                continue
+                                        else
+                                                log "Signature verification failed for ${cloud_bundle_name} package version ${cloud_bundle_ver}"
+                                                rm -rf ${APP_DWLD_DIR}
+                                                rm -rf ${APP_HOME_DIR}
+                                        fi
                                 fi
 
                         else

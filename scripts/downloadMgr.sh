@@ -197,7 +197,7 @@ fi
 url=$(getDownloadUrl)
 if [ -z $url ]; then
     log_msg "RDM download url is not available in both $RDM_SSR_LOCATION and RFC parameter. Exiting..."
-    updatePkgStatus "$RDM_DOWNLOAD_URL_NOT_FOUND"
+    updatePkgStatus "$RDM_PKG_INVALID_INPUT"
     exit 1
 fi
 

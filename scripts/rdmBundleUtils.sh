@@ -35,26 +35,49 @@ PKG_METADATA_VER="version"
 PKG_METADATA_LIST="contents"
 PKG_METADATA_SIZE="size"
 PKG_METADATA_INSTALL="installScript"
+RDM_APP_PATH="/media/apps"
 
-
-getOlderVersion()
+sortVersions()
 {
-	ret=""
+    ret=""
 
-	mkdir -p ${VERSION_SORT_TMPDIR}
-	CWD=$(pwd)
-	cd ${VERSION_SORT_TMPDIR}
+    mkdir -p ${VERSION_SORT_TMPDIR}
 
-	for ver in "$@"; do
-		touch "$ver"
-	done
+    for ver in "$@"; do
+        touch "${VERSION_SORT_TMPDIR}/$ver"
+    done
 
-	ret="$(ls -vr | xargs | tr " " "\n" | tail -n1)"
-	cd ${CWD}
-	rm -rf ${VERSION_SORT_TMPDIR}
+    ret="$(ls -v ${VERSION_SORT_TMPDIR} | xargs)"
 
-	echo "$ret"
+    rm -rf ${VERSION_SORT_TMPDIR}
+
+    echo "$ret"
 }
+
+
+getOldestVersion()
+{
+    [ "$#" -lt 1 ] && return
+
+    sortedList="$(sortVersions $@)"
+
+    old_ver="$(echo $sortedList | tr ' ' '\n' | head -n1)"
+
+    echo "$old_ver"
+}
+
+
+getLatestVersion()
+{
+    [ "$#" -lt 1 ] && return
+
+    sortedList="$(sortVersions $@)"
+
+    latest_ver="$(echo $sortedList | tr ' ' '\n' | tail -n1)"
+
+    echo "$latest_ver"
+}
+
 
 getInstalledVersions()
 {
@@ -82,6 +105,27 @@ getPkgMetadata()
         fi
 }
 
+getInstalledPackages()
+{
+    pkgList=""
+    PWD=$(pwd)
+    cd $RDM_APP_PATH
+    dir_list=$(ls -d */ | tr -d "/")
+    for app in $dir_list; do
+        APP_MANIFEST=$RDM_APP_PATH/$app/${app}_cpemanifest
+        if [ -f "$APP_MANIFEST" ]; then
+            pkgList="$app $pkgList"
+        else
+            APP_CPE_METADATA_FILE="$(find ${RDM_APP_PATH}/${app} -maxdepth 2 -name "*_package.json" | sort | uniq | xargs)"
+            if [ -f "$APP_CPE_METADATA_FILE" ]; then
+                pkgList="$app $pkgList"
+            fi
+        fi
+    done
+    cd $PWD
+    installedPackages=$(echo $pkgList | xargs)
+    echo "$installedPackages"
+}
 
 ## sanityCheck(bundleExtractDir)
 ### Sanity check whether all required file (padding file, signature file, manifest file)
@@ -96,7 +140,8 @@ getPkgMetadata()
 sanityCheckBundle()
 {
         bundleExtractDir=$1
-        app_name=$(basename $bundleExtractDir)
+        app_dir=$(dirname $bundleExtractDir)
+        app_name=$(basename $app_dir)
         log "Sanity check contents of $app_name at $bundleExtractDir"
 
         if [ -d "$bundleExtractDir" ]; then

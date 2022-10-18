@@ -39,7 +39,8 @@ if [ "$PROCESS_CUSTOM_BUNDLE" = "1" ]; then
       log_msg "Verifying signature of RDM Bundle"
       APP_NAME=$(basename $PACKAGE_FILE | awk -F"_" '{print $1}')
       CPEMANIFEST="${WORKDIR}/pkg_cpemanifest"
-      CPEMANIFEST_PATH="$CPEMANIFEST"
+      cp "${CPEMANIFEST}" "${CPEMANIFEST}.updated"
+      CPEMANIFEST_PATH="${CPEMANIFEST}.updated"
       CPEMETADATA="package.json"
       CPEMETADATA_PATH="${WORKDIR}/package.json"
 else
